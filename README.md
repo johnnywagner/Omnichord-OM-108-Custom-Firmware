@@ -36,7 +36,6 @@ The full guide to the new features on the instrument is the one-page **[User Man
 interrupted, just run it again.
 
 ## What the custom firmware adds
-Names below follow the panel labels, as in the User Manual: buttons in [BRACKETS], chord buttons in “quotes”.
 
 ### Startup modes (hold while switching on)
 - **OM-27 mode:** hold the [PATTERN (slow rock/funk)] button. The 6 [PATTERN] buttons (including the yellow one) now
