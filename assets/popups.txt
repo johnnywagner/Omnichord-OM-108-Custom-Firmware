@@ -1,0 +1,67 @@
+# Pop-up texts of the Suzuki Omnichord OM-108 Custom Firmware Tool. Edit the text under each [name];
+# keep the [name] lines and the {words in braces} (the tool fills them in). Lines starting with # are ignored.
+# Read when the tool starts. Blank lines inside a text are kept.
+
+[stock_bad]
+{file}
+
+is not the known stock OM-108 firmware (its checksum differs). Move it out of the my_unit/backups folder, then start the tool again.
+
+[stock_missing]
+The stock firmware file is missing:
+
+{file}
+
+No changes can be made until the stock firmware has been dumped from your device or copied to the backups folder. 
+
+Would you like to dump the current firmware from your Omnichord now? This is a read-only process and if your unit has the stock firmware it saves it to the backups folder. It takes a few minutes and only needs to be done once.
+
+[ready]
+Power off your OM-108. Remove the battery door and put the PLAY/UPDATE switch in the UPDATE position. Connect the OM-108 to your PC using a USB-B cable.
+
+Press OK, then hold the Omnichord's power button until the log says DONE or RESULT. If it stops, just do the same again.
+
+[stopped]
+The requested process unexpectedly stopped. Please check the log for more information. 
+
+[check_settings]
+Your Omnichord OM-108 currently has {result}.
+
+Show its settings in the window? (Your current choices are replaced; settings.ini is saved with them.)
+
+[check_done]
+Your Omnichord OM-108 currently has {result}.
+
+You can let go of the power button.
+
+Save a copy of the firmware that is on the unit now (in the dumps folder)?
+
+[install_done]
+Done. You can let go of the power button and set the PLAY/UPDATE switch back to PLAY. Check the hover tooltips on each setting for a detailed explanation on how to use them. I hope you find this custom firmware useful.
+
+[restore_ask]
+Reinstall the stock firmware?
+
+[full_warning]
+WARNING: Full Factory Restore.
+
+This rewrites every part of the unit's firmware that differs from your stock firmware file, whatever is on it now (also firmware this tool does not recognize), and the start-up area too. Only your unit's own saved settings at the very top are left alone (a factory reset clears them).
+
+Use it ONLY if a normal Restore Stock Firmware fails. If it stops part way, the unit may not start normally until you run it again: the UPDATE switch always works, so just do the same again. 
+
+Run the Full Factory Restore?
+
+[factory_done]
+Your Factory Firmware backup has been installed. Let go of the power button and set the PLAY/UPDATE switch back to PLAY.
+
+[stock_restored]
+The stock firmware file was missing (deleted or moved), so the tool put it back from its safety copy:
+
+{file}
+
+[stock_bad_restore]
+{file}
+
+is not the stock OM-108 firmware (its checksum differs).
+
+The tool has a safety copy of your stock firmware file. Put it back now? (The file above is kept, renamed to {renamed}, in the backups folder.)

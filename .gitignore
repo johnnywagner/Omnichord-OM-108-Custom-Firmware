@@ -1,0 +1,5 @@
+my_unit/
+.DS_Store
+__pycache__/
+*.pyc
+*.before_manual_sync.txt

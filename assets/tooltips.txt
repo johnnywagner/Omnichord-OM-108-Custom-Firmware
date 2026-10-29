@@ -1,0 +1,155 @@
+# Hover tips of the Suzuki Omnichord OM-108 Custom Firmware Tool. Edit the text under each [name];
+# keep the [name] lines. Lines starting with # are ignored. Read when the tool starts.
+# **Text between two pairs of stars** is shown in bold.
+
+[midi]
+Each preset (P1–P5) sends the parts ticked in its column, each on its own channel.
+To choose a preset on the unit, hold [VOICE] button 1–5 while switching on.
+The stock MIDI CC out messages (Volume & Release) have been removed to make room for the fifth preset, P5, so they are not configurable in this editor.
+
+[channel]
+The MIDI channel this part is sent on, in every preset. Off: this part is never sent.
+
+[presets]
+Tick a box to send that part (or the clock) in that preset.
+Choose the preset on the unit at power-on: hold [VOICE] button 1–5 while switching on.
+
+[part_main]
+**Main:** the strumplate notes.
+
+[part_chord]
+**Chord:** the chord notes.
+
+[part_bass]
+**Bass:** the bass notes.
+
+[part_sub]
+**Sub:** an identical copy of Main on its own channel.
+
+[part_drums]
+**Drums:** the rhythm's drum notes.
+
+[clock]
+MIDI Clock, Start and Stop, so other gear can follow the rhythm's tempo. Sent only in the ticked presets.
+
+[drum_map]
+Drum notes are sent on a smaller, more logical note range matching the Teenage Engineering OP-XY, instead of the stock drum note range.
+
+[sounds]
+The custom firmware adds an alternate sub sound to every voice except “omni 1”. After a voice has been selected, press the lit [VOICE] button again to toggle its alternate sub sound; press once more to go back. This is saved between power-offs.
+
+[sub]
+The sub sound this voice starts with.
+
+[alt]
+The sub sound you get by pressing the lit [VOICE] button again. This setting is saved.
+
+[voice_omni_1]
+“omni 1” is analog only: it has no customizable sub sound.
+
+[voice_omni_2]
+**omni 2:** its sub and alt sounds.
+
+[voice_harp]
+**harp:** its sub and alt sounds. Its main sound is set with Electric Harp (Bonus Features).
+
+[voice_celesta]
+**celeste:** its sub and alt sounds.
+
+[voice_a_piano]
+**A. piano:** its sub and alt sounds.
+
+[voice_guitar]
+**guitar:** its sub and alt sounds.
+
+[voice_fm_piano]
+**FM piano:** its sub and alt sounds.
+
+[voice_organ]
+**organ:** its sub and alt sounds.
+
+[voice_vibes]
+**vibes:** its sub and alt sounds.
+
+[voice_banjo]
+**banjo:** its sub and alt sounds.
+
+[electric_harp]
+Replaces the main sound of the stock “harp” voice with a custom electric harp / clav sound.
+
+[better_clap]
+Replaces the stock clap rhythm sound (also played by the Instant OFF plate in keyboard mode) with a "better" clap sound.
+
+[header]
+**Always On Mods**
+- **Saved Settings:** all your settings are saved between power-offs, except for Jazz Mode.
+- A factory reset (both [VOICE] and [PATTERN] left buttons (yellow) held while switching on) now sets the battery type to Ni-MH and also clears the saved settings.
+- The stock MIDI CC out messages (Volume & Release) have been removed, making room for a fifth MIDI preset, P5.
+
+**Stock Firmware Bug Fixes:** two small bugs involving LED states and chord data sent via MIDI out have been fixed (e.g. the held chord is now preserved on MIDI out when switching from Auto to Manual).
+
+[modulation]
+Changes what the Instant OFF plate does, using the 3 chord buttons at the bottom left of the chord button grid that are unused in keyboard mode.
+
+In keyboard mode, the “G♭-7th” chord button sets the modulation mode, in one of 3 ways:
+**Tap:** cycles to the next mode, shown on the [VOICE] LEDs. The unit announces the selected mode (intended for beginners).
+**Hold + [↑]/[↓] buttons:** cycles through the modes silently, like setting Transpose or Master Tune.
+**Hold + [VOICE] button 1–5:** chooses one of the 5 modes directly and silently. This is my preferred method.
+
+**The 5 modes:**
+- **Instant Off:** the stock behavior.
+- **Vibrato Auto:** like the stock behavior, a finger on the plate turns on the vibrato. The plate now also detects partial coverage and adjusts speed and depth accordingly. Try rolling your finger off slowly after pressing.
+- **Vibrato Manual:** rest a finger on a corner of the Instant OFF plate and rock it in and out, like bending a guitar string.
+- **Tremolo Auto:** the same as Vibrato Auto, but for volume.
+- **Tremolo Manual:** the same as Vibrato Manual, but for volume.
+
+**Speed (Auto modes):** hold the “G♭-MINOR” chord button and press [↑]/[↓], −6 to +6 on the [VOICE] LEDs.
+**Depth:** hold the “D♭-MINOR” chord button and press [↑]/[↓], 0 to 12 on the [PATTERN] LEDs.
+The [↓]/[↑] buttons are the “E♭-MAJOR”/“B♭-MAJOR” chord buttons, as for Transpose and Master Tune; pressing both together resets the setting.
+
+**Notes:**
+- In keyboard mode, hold a chromatic key and press the “G♭-MINOR” or “D♭-MINOR” chord button to play an Auto modulation mode on the played notes.
+- Both Vibrato modes send matching MIDI pitch bend out. Both Tremolo modes are local to the unit and are not sent over MIDI.
+- Due to limitations of the analog circuits, neither Tremolo mode works on “omni 1” or the main voice of “omni 2”.
+
+Each mode's settings are saved automatically and are unique to that mode.
+
+[extras]
+**OM-27 mode:** hold the [PATTERN (slow rock/funk)] button on startup. The 6 [PATTERN] buttons (including the yellow one) then play the 6 OM-27 rhythm patterns.
+  - From left to right: Latin (yellow), Rock, Foxtrot, Slow Rock, Waltz, Swing.
+  - Hold any 2 [PATTERN] buttons and press the [KEYBOARD (ON)] button to lock the selection.
+  - Otherwise, this mode works just like the OM-27.
+
+**Alternate Bass:** hold the [PATTERN] left button (yellow) on startup for an alternate (plucked) bass sound. Hold the [VOICE] left button (yellow) for the stock bass sound.
+
+**Jazz Mode:** hold the [KEYBOARD (ON)] button on startup. Changes and adds chord fingerings, and voice leads intelligently when switching chords. This is the only setting NOT remembered between power cycles. Have fun!
+
+**3rd Manual/Auto State:** hold the [Chord Manual/Auto] button and press the [KEYBOARD (ON)] button at any time (both LEDs lit). This third state combines Manual chords with the Auto bass. Do the same again to go back.
+
+[spoken_names]
+The unit announces the rhythm mode chosen at power-on ([PATTERN (swing/waltz)]: “84 mode”, [PATTERN (country/bossanova)]: “108 mode”, [PATTERN (slow rock/funk)]: “27 mode”) and the modulation mode selected by tapping the “G♭-7th” chord button. I recommend leaving this on.
+**Off:** the modes still change and the LEDs still show them; nothing is spoken.
+
+[install]
+Writes the custom firmware onto the unit, made from your stock firmware file and the settings chosen above.
+**Flashing Instructions:**
+1. Turn the Omnichord off, leaving the batteries in.
+2. Remove the battery cover and set the PLAY/UPDATE switch to UPDATE with a small screwdriver or similar tool.
+3. Connect the USB-B port to your computer and click this button to proceed.
+4. **IMPORTANT:** During all reads and writes, the red power button must be held down! If it is released during a transfer, you will need to start over.
+**Afterwards:** set the switch back to PLAY and test.
+
+[restore]
+Puts your unit's original firmware back, from your stock firmware file.
+Connect it the same way as for Install Firmware (PLAY/UPDATE switch on UPDATE, and hold the power button until DONE).
+
+[check]
+Reads the whole unit (nothing is written), tells you what is on it and offers to save a copy in my_unit/dumps/.
+If it has the stock firmware and the tool has none yet, this is automatically saved as the stock firmware file.
+Connect it the same way as for Install Firmware.
+
+[defaults]
+Sets every choice back to the Suggested Default: the recommended setup, with every feature on and JohnnyW's recommended MIDI and sub sound configuration.
+
+[stock]
+The stock firmware file (my_unit/backups/om108_backup.bin): your unit's original firmware. Every custom firmware created by this tool is generated from it.
