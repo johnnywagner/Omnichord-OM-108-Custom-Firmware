@@ -6,8 +6,8 @@ A small desktop tool (macOS and Windows) that builds and installs a custom firmw
 made from **your own unit's original firmware**, with the features and sounds you choose. It can always put the original
 firmware back.
 
-The full guide to the new features on the instrument is the one-page **[User Manual](OM108_CFW_User_Manual.pdf)**
-(`OM108_CFW_User_Manual.pdf`). Inside the tool, hover over anything in the window for a full explanation.
+The full guide to the new features on the instrument is the one-page **[User Manual](OM-108_CFW_User_Manual.pdf)**
+(`OM-108_CFW_User_Manual.pdf`). Inside the tool, hover over anything in the window for a full explanation.
 
 > **Disclaimer:** this is an unofficial hobby project, not affiliated with or endorsed by Suzuki or NXP. It is provided
 > as is, without any warranty. Modifying your instrument's firmware is at your own risk. It was built and tested on one
@@ -151,7 +151,7 @@ when switching chords.
 | | |
 |---|---|
 | `om108_gui.py` | the tool (start this) |
-| `OM108_CFW_User_Manual.pdf` | the one-page User Manual for the new features |
+| `OM-108_CFW_User_Manual.pdf` | the one-page User Manual for the new features |
 | `assets/` | the tool's own files (don't delete): the install engine, the firmware recipe (`om108_mod.patch`: only the modification's own bytes, no Suzuki code), NXP's flashloader, the hover texts (`tooltips.txt`) and popup texts (`popups.txt`) |
 | `my_unit/` | made on first use: everything about **your** unit: its stock firmware, copies read from it, logs, your settings. **Never share it**; delete it before giving the tool to someone else. |
 | `firmware_source/` | the source code of the modification, plus the development notes for making your own changes (see its README) |
