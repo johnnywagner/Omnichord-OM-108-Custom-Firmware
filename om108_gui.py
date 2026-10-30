@@ -85,13 +85,15 @@ SUB_NRM = [None, 3, 17, 3, 3, 3, 2, 21, 18, 18]                                 
 SUB_ALT = [None, 2, 1, 7, 19, 2, 11, 20, 15, 2]
 FLAGS = [('drum_map', 'midi', 'drum_note_remap'), ('electric_harp', 'sounds', 'electric_harp'),
          ('better_clap', 'sounds', 'better_clap'), ('modulation', 'features', 'modulation_modes'),
-         ('extras', 'features', 'extras'), ('spoken_names', 'features', 'spoken_mode_names')]
+         ('extras', 'features', 'extras'), ('spoken_names', 'features', 'spoken_mode_names'),
+         ('kb_transpose', 'features', 'keyboard_transpose')]
 
 def defaults():
     return {'midi': {v: {'channel': c, 'presets': list(p)} for v, (c, p) in MIDI_DEFAULT.items()},
             'clock': list(CLOCK_DEFAULT),
             'subs': [None if n is None else {'sub': n, 'alt': a} for n, a in zip(SUB_NRM, SUB_ALT)],
-            'drum_map': True, 'electric_harp': True, 'better_clap': True, 'modulation': True, 'extras': True, 'spoken_names': True}
+            'drum_map': True, 'electric_harp': True, 'better_clap': True, 'modulation': True, 'extras': True, 'spoken_names': True,
+            'kb_transpose': True}
 
 # ------------------------------------------------------------------------------------------------- settings.ini
 def key(name): return name.lower().replace('. ', '_').replace(' ', '_')
@@ -110,7 +112,8 @@ def ini_text(d, win=None):
     for v, s in enumerate(d['subs']):
         if s: L += [f'{key(VOICES[v])}_sub = {SUBS[s["sub"]]}', f'{key(VOICES[v])}_alt = {SUBS[s["alt"]]}']
     L += [f'electric_harp = {yn(d["electric_harp"])}', f'better_clap = {yn(d["better_clap"])}', '', '[bonus features]',
-          f'modulation_modes = {yn(d["modulation"])}', f'extras = {yn(d["extras"])}', f'spoken_mode_names = {yn(d["spoken_names"])}', '']
+          f'modulation_modes = {yn(d["modulation"])}', f'extras = {yn(d["extras"])}', f'spoken_mode_names = {yn(d["spoken_names"])}',
+          f'keyboard_transpose = {yn(d["kb_transpose"])}', '']
     if win: L += ['[window]', '# the window size you set (it keeps its proportions; delete this line for the size fitted to the screen)', f'size = {win[0]} x {win[1]}', '']
     return '\n'.join(L)
 
@@ -195,6 +198,7 @@ DEFAULT_TIPS = [
     ('modulation', "Changes what the Instant OFF plate does, using the 3 chord buttons at the bottom left of the chord button grid that are unused in keyboard mode.\n\nIn keyboard mode, the “G♭-7th” chord button sets the modulation mode, in one of 3 ways:\n**Tap:** cycles to the next mode, shown on the [VOICE] LEDs. The unit announces the selected mode (intended for beginners).\n**Hold + [↑]/[↓] buttons:** cycles through the modes silently, like setting Transpose or Master Tune.\n**Hold + [VOICE] button 1–5:** chooses one of the 5 modes directly and silently. This is my preferred method.\n\n**The 5 modes:**\n- **Instant Off:** the stock behavior.\n- **Vibrato Auto:** like the stock behavior, a finger on the plate turns on the vibrato. The plate now also detects partial coverage and adjusts speed and depth accordingly. Try rolling your finger off slowly after pressing.\n- **Vibrato Manual:** rest a finger on a corner of the Instant OFF plate and rock it in and out, like bending a guitar string.\n- **Tremolo Auto:** the same as Vibrato Auto, but for volume.\n- **Tremolo Manual:** the same as Vibrato Manual, but for volume.\n\n**Speed (Auto modes):** hold the “G♭-MINOR” chord button and press [↑]/[↓], −6 to +6 on the [VOICE] LEDs.\n**Depth:** hold the “D♭-MINOR” chord button and press [↑]/[↓], 0 to 12 on the [PATTERN] LEDs.\nThe [↓]/[↑] buttons are the “E♭-MAJOR”/“B♭-MAJOR” chord buttons, as for Transpose and Master Tune; pressing both together resets the setting.\n\n**Notes:**\n- In keyboard mode, hold a chromatic key and press the “G♭-MINOR” or “D♭-MINOR” chord button to play an Auto modulation mode on the played notes.\n- Both Vibrato modes send matching MIDI pitch bend out. Both Tremolo modes are local to the unit and are not sent over MIDI.\n- Due to limitations of the analog circuits, neither Tremolo mode works on “omni 1” or the main voice of “omni 2”.\n\nEach mode's settings are saved automatically and are unique to that mode."),
     ('extras', '**OM-27 mode:** hold the [PATTERN (slow rock/funk)] button on startup. The 6 [PATTERN] buttons (including the yellow one) then play the 6 OM-27 rhythm patterns.\n  - From left to right: Latin (yellow), Rock, Foxtrot, Slow Rock, Waltz, Swing.\n  - Hold any 2 [PATTERN] buttons and press the [KEYBOARD (ON)] button to lock the selection.\n  - Otherwise, this mode works just like the OM-27.\n\n**Alternate Bass:** hold the [PATTERN] left button (yellow) on startup for an alternate (plucked) bass sound. Hold the [VOICE] left button (yellow) for the stock bass sound.\n\n**Jazz Mode:** hold the [KEYBOARD (ON)] button on startup. Changes and adds chord fingerings, and voice leads intelligently when switching chords. This is the only setting NOT remembered between power cycles. Have fun!\n\n**3rd Manual/Auto State:** hold the [Chord Manual/Auto] button and press the [KEYBOARD (ON)] button at any time (both LEDs lit). This third state combines Manual chords with the Auto bass. Do the same again to go back.'),
     ('spoken_names', 'The unit announces the rhythm mode chosen at power-on ([PATTERN (swing/waltz)]: “84 mode”, [PATTERN (country/bossanova)]: “108 mode”, [PATTERN (slow rock/funk)]: “27 mode”) and the modulation mode selected by tapping the “G♭-7th” chord button. I recommend leaving this on.\n**Off:** the modes still change and the LEDs still show them; nothing is spoken.'),
+    ('kb_transpose', 'In keyboard mode, the chromatic keyboard notes follow the Transpose setting, like the chords and the strumplate do (MIDI out too). If you change Transpose while holding a note, the new setting starts with the next note you play.\n**Off:** the stock behavior: keyboard notes ignore Transpose.'),
     ('install', 'Writes the custom firmware onto the unit, made from your stock firmware file and the settings chosen above.\n**Flashing Instructions:**\n1. Turn the Omnichord off, leaving the batteries in.\n2. Remove the battery cover and set the PLAY/UPDATE switch to UPDATE with a small screwdriver or similar tool.\n3. Connect the USB-B port to your computer and click this button to proceed.\n4. **IMPORTANT:** During all reads and writes, the red power button must be held down! If it is released during a transfer, you will need to start over.\n**Afterwards:** set the switch back to PLAY and test.'),
     ('restore', "Puts your unit's original firmware back, from your stock firmware file.\nConnect it the same way as for Install Firmware (PLAY/UPDATE switch on UPDATE, and hold the power button until DONE)."),
     ('check', 'Reads the whole unit (nothing is written), tells you what is on it and offers to save a copy in my_unit/dumps/.\nIf it has the stock firmware and the tool has none yet, this is automatically saved as the stock firmware file.\nConnect it the same way as for Install Firmware.'),
@@ -427,7 +431,8 @@ class App(tk.Tk):
         f = ttk.Frame(page); f.pack(fill='x')
         ttk.Label(f, text='Bonus Features', style='Head.TLabel').grid(row=0, column=0, columnspan=4, sticky='w', pady=(0, 6))
         rows = [('modulation', 'Modulation Modes'), ('extras', 'Extras'), ('spoken_names', 'Spoken Mode Names'),
-                ('drum_map', 'Drum MIDI Remap'), ('electric_harp', 'Electric Harp'), ('better_clap', 'Better Clap')]
+                ('drum_map', 'Drum MIDI Remap'), ('electric_harp', 'Electric Harp'), ('better_clap', 'Better Clap'),
+                ('kb_transpose', 'Keyboard Transpose')]
         for i, (k, t) in enumerate(rows):
             self.vars[k] = tk.IntVar()
             tip(self._gate(ttk.Checkbutton(f, text=t, variable=self.vars[k])), k).grid(row=1 + i // 4, column=i % 4, sticky='w', padx=(0, 32), pady=(0, 10))

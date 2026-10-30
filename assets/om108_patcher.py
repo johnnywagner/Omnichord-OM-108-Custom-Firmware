@@ -95,7 +95,7 @@ PARTS = ['Main', 'Chord', 'Bass', 'Sub', 'Drums']
 PART_CH = {'Main': 0, 'Chord': 1, 'Bass': 2, 'Sub': 3, 'Drums': 9}      # mod 1's internal channels
 SUB_NAMES = {1: 'Evolve', 2: 'Mellow Pad', 3: 'Sine Pad', 7: 'Church Bell', 11: 'Rezy', 15: 'Hand Pan', 17: 'Dial Up',
              18: 'Strings', 19: 'Strings 2', 20: '7th Doo', 21: 'Dah Guys'}
-SWITCHES = ['modulation', 'extras', 'spoken_names', 'drum_map', 'electric_harp', 'better_clap']   # settings block bits 0-5
+SWITCHES = ['modulation', 'extras', 'spoken_names', 'drum_map', 'electric_harp', 'better_clap', 'kb_transpose']   # settings block bits 0-6
 def default_settings():
     return {'midi': {'Main': {'channel': 8, 'presets': [0, 0, 1, 1, 1]}, 'Chord': {'channel': 9, 'presets': [1, 0, 1, 1, 1]},
                      'Bass': {'channel': 7, 'presets': [0, 0, 0, 1, 1]}, 'Sub': {'channel': 9, 'presets': [0, 1, 0, 0, 0]},
