@@ -62,7 +62,7 @@ def Z(n, lo=1):
     """A size in pixels (padding, box sizes) at the current zoom."""
     return max(lo, round(n * ZOOM))
 
-GUI_VERSION = '0.41'
+GUI_VERSION = '0.42'
 SETTINGS_ACTIVE = True       # the firmware reads the settings block (Install uses the window's choices)
 SETTINGS = UNIT / 'settings.ini'
 BACKUPS = UNIT / 'backups'

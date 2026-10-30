@@ -21,7 +21,7 @@ files in assets/ (this script, the recipe, the flashloader), the unit's files in
 import sys, os, json, struct, zlib, hashlib, time, argparse, io, contextlib, shutil, subprocess
 from pathlib import Path
 
-TOOL_VERSION = '1.1'
+TOOL_VERSION = '1.2'
 HERE = Path(__file__).resolve().parent
 UNIT_DIR = HERE.parent / 'my_unit' if HERE.name in ('assets', '.assets') else HERE      # the unit's files (the tool folder's my_unit/)
 SIZE, BOOT_END, FW_END, SECTOR, ERASE_MAX, BASE = 0x1000000, 0x2000, 0xFFE000, 0x1000, 0x8000, 0x60000000
