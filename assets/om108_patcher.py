@@ -28,7 +28,11 @@ SIZE, BOOT_END, FW_END, SECTOR, ERASE_MAX, BASE = 0x1000000, 0x2000, 0xFFE000, 0
 SDP_ID, MB_ID = '0x1fc9:0x0130', '0x15a2:0x0073'
 # the stock firmware this mod was built on: SHA-256 of 0x60000000-0x60FFDFFF (the part every unit shares; the top 8 KB
 # holds each unit's own settings and is never written by this tool)
-KNOWN_STOCK = {'ed36679655347814183e36f69bacba8f3a317b30074a7538df55d3bf46de157f': 'OM-108 stock firmware'}
+KNOWN_STOCK = {'ed36679655347814183e36f69bacba8f3a317b30074a7538df55d3bf46de157f': 'OM-108 stock firmware 1.0.2.9'}
+# every factory version seen so far, by the same hash: its version digits (the stock test mode shows 1.0.2.9 / 1.0.3.0),
+# which name the backup (om108_backup_v29.bin). Only KNOWN_STOCK can be installed on; 1.0.3.0 (issue #4) not yet.
+STOCK_VERSIONS = {'ed36679655347814183e36f69bacba8f3a317b30074a7538df55d3bf46de157f': '29',
+                  '97de517e44c4700190d314480203f535590220271f56afa74085028d0d9e016f': '30'}
 FLASHLOADER = ('ivt_flashloader_rt1020.bin', 'bce4ccff076ca397dab2ffa72f260fcc8c7784a71ee532038cbdb4d2e4f0024a')
 RW_FCB = ('omnichord_rw_fcb.bin', '770ac368d4076745a9303772bc783ac2fdead605e8764ec9e1325d7c33fdd8ce')      # writes
 RO_FCB = ('omnichord_readonly_fcb.bin', 'fc3652b343f399998369198c2d70c53067044f211323af603a68b43e611e79b1')  # backup / check
@@ -51,6 +55,22 @@ def other_stock(d):
     mod puts samples (0x60DA0000-), must be blank too, so a cut install or restore is not taken for one."""
     return sha(d[:FW_END]) not in KNOWN_STOCK and d[0x39000:0x48000] in (b'\xff' * 0xF000, b'\x00' * 0xF000) \
         and d[0xDA0000:FW_END] == b'\xff' * (FW_END - 0xDA0000)
+def stock_version(b): return STOCK_VERSIONS.get(sha(b[:FW_END]))
+def backup_name(v): return f'om108_backup_v{v}.bin'
+def find_backup(bdir):
+    """The stock firmware file in bdir (None if there is none): om108_backup_v<version>.bin of a supported version. A
+    backup made before the names carried the version (om108_backup.bin) is renamed once it checks as stock; any other
+    file of that name keeps it (and is reported as not stock)."""
+    bdir = Path(bdir)
+    for v in sorted(STOCK_VERSIONS[h] for h in KNOWN_STOCK):
+        if (bdir / backup_name(v)).exists(): return bdir / backup_name(v)
+    old = bdir / 'om108_backup.bin'
+    if not old.exists(): return None
+    try: b = old.read_bytes()
+    except OSError: return old
+    if len(b) == SIZE and sha(b[:FW_END]) in KNOWN_STOCK:
+        new = bdir / backup_name(stock_version(b)); os.replace(old, new); return new
+    return old
 BLANK = {}
 def blank_sha(n):
     if n not in BLANK: BLANK[n] = sha(b'\xff' * n)
@@ -346,7 +366,7 @@ def read_regions(u, regs):
 class Patcher:
     def __init__(self, folder, tools_factory=None, out=print):
         self.dir = Path(folder); self.dir.mkdir(parents=True, exist_ok=True); self.bdir = self.dir / 'backups'; self.out = out
-        self.backup_file = self.bdir / 'om108_backup.bin'; self.state_file = self.bdir / 'om108_state.json'
+        self.backup_file = find_backup(self.bdir) or self.bdir / backup_name('29'); self.state_file = self.bdir / 'om108_state.json'
         (self.dir / 'logs').mkdir(parents=True, exist_ok=True)
         self.logf = open(self.dir / 'logs' / time.strftime('patcher_%Y%m%d.log'), 'a')
         try: from importlib.metadata import version as _v; sv = _v('spsdk')
@@ -398,7 +418,8 @@ class Patcher:
                 self.say(f'  backup {100 * (off + 0x40000) // SIZE:3d} %   ({self.elapsed()})')
         b = part.read_bytes(); h = sha(b[:FW_END])
         if h not in KNOWN_STOCK:
-            bad = self.bdir / 'unknown_unit_dump.bin'; os.replace(part, bad)
+            v = stock_version(b)
+            bad = self.bdir / (f'om108_backup_v{v}_not_supported_yet.bin' if v else 'unknown_unit_dump.bin'); os.replace(part, bad)
             try:
                 rec = self.recipe()
                 mod = h == rec[0]['target_fw_sha256'] or h in {L['target_fw_sha256'] for L in rec[0]['legacy']} or settings_from_block(b[CFG_OFF:CFG_OFF + 64]) is not None
@@ -411,7 +432,7 @@ class Patcher:
                            'so support can be added.')
             raise Stop(f'this unit\'s firmware is not the one this patcher knows (saved as {bad}). Nothing was changed. '
                        'Please don\'t install; send the log in logs/ to the mod\'s author.')
-        os.replace(part, self.backup_file)
+        self.backup_file = self.bdir / backup_name(stock_version(b)); os.replace(part, self.backup_file)
         st = self.state(); st.update(backup_sha256=sha(b), installed='stock'); self.save_state(st)
         self.say(f'DONE - backup saved: {self.backup_file} ({KNOWN_STOCK[h]}, checked). Keep this file safe. ({self.elapsed()})')
 
@@ -423,6 +444,7 @@ class Patcher:
         if self.backup_file.exists():
             if self.backup_file.read_bytes()[:FW_END] == b[:FW_END]: self.say('That backup is already in place.'); return
             raise Stop(f'a different backup already exists ({self.backup_file}); move it away first')
+        self.backup_file = self.bdir / backup_name(stock_version(b))
         self.bdir.mkdir(exist_ok=True); tmp = self.backup_file.with_suffix('.tmp'); tmp.write_bytes(b); os.replace(tmp, self.backup_file)
         st = self.state(); st.update(backup_sha256=sha(b)); self.save_state(st)
         self.say(f'DONE - backup imported: {self.backup_file}')
@@ -562,11 +584,12 @@ class Patcher:
         except Stop: rec = None
         r, kind = self.what_is(d, backup, rec)
         if kind == 'stock' and backup is None:
+            self.backup_file = self.bdir / backup_name(stock_version(d))
             self.bdir.mkdir(exist_ok=True); tmp = self.backup_file.with_suffix('.tmp'); tmp.write_bytes(d); os.replace(tmp, self.backup_file)
             st = self.state(); st.update(backup_sha256=sha(d), installed='stock'); self.save_state(st)
             r += f'; saved as the stock firmware file ({self.bdir.name}/{self.backup_file.name})'
         self.say(f'RESULT: the unit has {r}. ({self.elapsed()})')
-        res = {'kind': kind, 'text': r, 'file': str(last)}
+        res = {'kind': kind, 'text': r, 'file': str(last), 'version': stock_version(d)}   # (a factory version, else None)
         s = settings_from_block(d[CFG_OFF:CFG_OFF + 64]) if kind == 'custom' else None
         if s: res['settings'] = s
         return res

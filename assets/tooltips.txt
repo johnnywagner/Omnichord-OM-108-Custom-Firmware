@@ -152,4 +152,4 @@ Connect it the same way as for Install Firmware.
 Sets every choice back to the Suggested Default: the recommended setup, with every feature on and JohnnyW's recommended MIDI and sub sound configuration.
 
 [stock]
-The stock firmware file (my_unit/backups/om108_backup.bin): your unit's original firmware. Every custom firmware created by this tool is generated from it.
+The stock firmware file (my_unit/backups/om108_backup_v29.bin): your unit's original firmware. Every custom firmware created by this tool is generated from it.

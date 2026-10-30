@@ -9,7 +9,7 @@ You can edit or back it up with any text editor (close the window first, or it w
 
 Self-contained: everything it needs, reads and writes is in this folder: the tool's own files in assets/, everything
 about your unit in my_unit/ (the stock firmware in backups/, copies in dumps/, logs, settings). Nothing can be installed
-until the stock firmware of your unit is in my_unit/backups/om108_backup.bin (checked against the known stock firmware). If it is missing, the window offers to check
+until the stock firmware of your unit is in my_unit/backups/om108_backup_v29.bin (checked against the known stock firmware). If it is missing, the window offers to check
 the unit, which reads it (read only) and keeps it if it is the stock firmware.
 
 Version 0.23: Install Firmware installs the firmware with the choices in the window (MIDI, Sub Sounds, Bonus Features).
@@ -65,7 +65,11 @@ def Z(n, lo=1):
 GUI_VERSION = '0.41'
 SETTINGS_ACTIVE = True       # the firmware reads the settings block (Install uses the window's choices)
 SETTINGS = UNIT / 'settings.ini'
-STOCK = UNIT / 'backups' / 'om108_backup.bin'
+BACKUPS = UNIT / 'backups'
+def stock_file():
+    """The stock firmware file: backups/om108_backup_v<version>.bin (v29 = factory firmware 1.0.2.9); a tool 1.1 backup
+    (om108_backup.bin) is renamed to that the first time it is looked at."""
+    return OP.find_backup(BACKUPS) or BACKUPS / OP.backup_name('29')
 SAFE = UNIT / 'work' / 'stock_safety_copy' / 'om108_backup.bin'     # a second copy of the stock firmware file (_guard_stock)
 DUMPS = UNIT / 'dumps'
 TITLE = 'Suzuki Omnichord OM-108 Custom Firmware Tool'
@@ -199,7 +203,7 @@ DEFAULT_TIPS = [
     ('restore', "Puts your unit's original firmware back, from your stock firmware file.\nConnect it the same way as for Install Firmware (PLAY/UPDATE switch on UPDATE, and hold the power button until DONE)."),
     ('check', 'Reads the whole unit (nothing is written), tells you what is on it and offers to save a copy in my_unit/dumps/.\nIf it has the stock firmware and the tool has none yet, this is automatically saved as the stock firmware file.\nConnect it the same way as for Install Firmware.'),
     ('defaults', "Sets every choice back to the Suggested Default: the recommended setup, with every feature on and JohnnyW's recommended MIDI and sub sound configuration."),
-    ('stock', "The stock firmware file (my_unit/backups/om108_backup.bin): your unit's original firmware. Every custom firmware created by this tool is generated from it."),
+    ('stock', "The stock firmware file (my_unit/backups/om108_backup_v29.bin): your unit's original firmware. Every custom firmware created by this tool is generated from it."),
 ]
 TIPS = dict(DEFAULT_TIPS)
 
@@ -709,7 +713,7 @@ class App(tk.Tk):
 
     # -------------------------------------------------------------------------- the stock firmware
     def _refresh(self):
-        ok = is_stock_file(STOCK)
+        ok = is_stock_file(stock_file())
         self.stock_lbl.configure(text='Stock Firmware: Found' if ok else 'Stock Firmware: Missing', style='Good.TLabel' if ok else 'Bad.TLabel')
         for w in self.gated: w.state(['!disabled'] if ok and not self.busy else ['disabled'])
         for w in self.always: w.state(['disabled'] if self.busy else ['!disabled'])
@@ -719,6 +723,7 @@ class App(tk.Tk):
         """Every 3 s: the stock firmware file is kept safe. While it is there (and checked), a second copy is kept in
         work/stock_safety_copy/; if the file goes missing (deleted, moved), it is put back from that copy at once."""
         try:
+            STOCK = stock_file()
             sig = lambda p: (p.stat().st_size, p.stat().st_mtime_ns) if p.exists() else None
             now = (sig(STOCK), sig(SAFE))
             if now != self._seen:
@@ -730,6 +735,7 @@ class App(tk.Tk):
                 elif now[0] and repeat and self._seen is not None and is_stock_file(SAFE) and not is_stock_file(STOCK):
                     self._seen = (sig(STOCK), sig(SAFE)); self._offer_safe(); now = None   # (asked once per change)
                 elif not now[0] and is_stock_file(SAFE):
+                    STOCK = BACKUPS / OP.backup_name(OP.stock_version(SAFE.read_bytes()))
                     STOCK.parent.mkdir(parents=True, exist_ok=True); tmp = STOCK.with_suffix('.tmp')
                     shutil.copyfile(SAFE, tmp); os.replace(tmp, STOCK)
                     self.say(f'The stock firmware file was missing: put back from the safety copy ({STOCK.parent.name}/{STOCK.name}).')
@@ -742,16 +748,19 @@ class App(tk.Tk):
     def _offer_safe(self):
         """The stock firmware file is not stock: offer the safety copy (if there is a good one). True if it was put back."""
         if not is_stock_file(SAFE): return False
+        STOCK = stock_file()
         renamed = time.strftime('om108_backup_not_stock_%Y-%m-%d_%H%M%S.bin')
         if not messagebox.askyesno('Stock Firmware', P('stock_bad_restore', file=STOCK, renamed=renamed)): return True
         try:
-            os.replace(STOCK, STOCK.parent / renamed); tmp = STOCK.with_suffix('.tmp')
+            os.replace(STOCK, STOCK.parent / renamed); STOCK = BACKUPS / OP.backup_name(OP.stock_version(SAFE.read_bytes()))
+            tmp = STOCK.with_suffix('.tmp')
             shutil.copyfile(SAFE, tmp); os.replace(tmp, STOCK)
             self.say(f'The stock firmware file was put back from the safety copy (the other file: {STOCK.parent.name}/{renamed}).')
         except OSError as e: self.say(f'Could not put the safety copy back: {e}')
         self._seen = None; self._refresh(); return True
 
     def _startup(self):
+        STOCK = stock_file()
         if self._refresh(): self.say(f'Stock firmware: {STOCK.parent.name}/{STOCK.name} (checked).'); return
         if STOCK.exists():
             if not self._offer_safe(): messagebox.showwarning('Stock Firmware', P('stock_bad', file=STOCK, report=OP.REPORT))
@@ -849,7 +858,8 @@ class App(tk.Tk):
                 self.load_dict(d); self.say('The settings of the firmware on the unit are now shown.')
         if v.get('kind') == 'unsupported': messagebox.showwarning('Check/Dump Firmware', P('unsupported', report=OP.REPORT))
         if messagebox.askyesno('Check/Dump Firmware', P('check_done', result=v['text'])):
-            DUMPS.mkdir(exist_ok=True); dst = DUMPS / time.strftime('om108_dump_%Y-%m-%d_%H%M%S.bin')
+            ver = f"_v{v['version']}" if v.get('version') else ''          # a factory firmware: its version (v29 / v30)
+            DUMPS.mkdir(exist_ok=True); dst = DUMPS / time.strftime(f'om108_dump{ver}_%Y-%m-%d_%H%M%S.bin')
             shutil.copyfile(v['file'], dst); self.say(f'Saved: {DUMPS.name}/{dst.name}')
 
     def do_defaults(self):
