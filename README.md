@@ -26,7 +26,7 @@ The full guide to the new features on the instrument is the one-page **[User Man
 2. Your unit must be on its original (stock) firmware. Turn the Omnichord off, leaving the batteries in. Remove the
    battery cover and set the **PLAY/UPDATE** switch to **UPDATE** with a small screwdriver or similar tool, connect USB
    and click **Check/Dump Firmware**. This only reads the unit, and saves its stock firmware in
-   `my_unit/backups/om108_backup.bin`.
+   `my_unit/backups/om108_backup_v29.bin` (the number is your unit's factory firmware version: 29 = 1.0.2.9).
 3. **Keep a copy of that file somewhere safe:** it is your way back to stock.
 4. Choose your settings and click **Install Firmware**. **During all reads and writes, the red power button must be held
    down** until the log says DONE; if it is released during a transfer, just start over.
