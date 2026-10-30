@@ -228,7 +228,8 @@ def load_tips():
 # popups.txt in assets/: the same format as tooltips.txt. {words in braces} are filled in by the tool (keep them).
 POPUPS_FILE = ASSETS / 'popups.txt'
 DEFAULT_POPUPS = [
-    ('stock_bad', '{file}\n\nis not the known stock OM-108 firmware (its checksum differs). Move it out of the my_unit/backups folder, then start the tool again.'),
+    ('stock_bad', '{file}\n\nis not the known stock OM-108 firmware (its checksum differs). Move it out of the my_unit/backups folder, then start the tool again.\n\nIf it is a copy of your own unit\'s original firmware, your OM-108 probably has a different factory firmware version, which this tool does not support yet. Please don\'t install; report it at {report} so support can be added.'),
+    ('unsupported', 'Your Omnichord OM-108 has a factory firmware version this tool does not support yet: it is not the one the custom firmware was made for, and installing it could stop the unit from working. Nothing was changed on your unit.\n\nPlease don\'t install. Report it at {report} so support can be added.'),
     ('stock_missing', 'The stock firmware file is missing:\n\n{file}\n\nNo changes can be made until the stock firmware has been dumped from your device or copied to the backups folder. \n\nWould you like to dump the current firmware from your Omnichord now? This is a read-only process and if your unit has the stock firmware it saves it to the backups folder. It takes a few minutes and only needs to be done once.'),
     ('ready', "Power off your OM-108. Remove the battery door and put the PLAY/UPDATE switch in the UPDATE position. Connect the OM-108 to your PC using a USB-B cable.\n\nPress OK, then hold the Omnichord's power button until the log says DONE or RESULT. If it stops, just do the same again."),
     ('stopped', 'The requested process unexpectedly stopped. Please check the log for more information.'),
@@ -753,7 +754,7 @@ class App(tk.Tk):
     def _startup(self):
         if self._refresh(): self.say(f'Stock firmware: {STOCK.parent.name}/{STOCK.name} (checked).'); return
         if STOCK.exists():
-            if not self._offer_safe(): messagebox.showwarning('Stock Firmware', P('stock_bad', file=STOCK))
+            if not self._offer_safe(): messagebox.showwarning('Stock Firmware', P('stock_bad', file=STOCK, report=OP.REPORT))
             return
         if messagebox.askyesno('Stock Firmware Missing', P('stock_missing', file=STOCK)):
             self.do_check()
@@ -846,6 +847,7 @@ class App(tk.Tk):
             if messagebox.askyesno('Check/Dump Firmware', P('check_settings', result=v['text'])):
                 d = OP.norm_settings(v['settings']); d['subs'] = [None if s is None else {'sub': s['sub'], 'alt': s['alt']} for s in d['subs']]
                 self.load_dict(d); self.say('The settings of the firmware on the unit are now shown.')
+        if v.get('kind') == 'unsupported': messagebox.showwarning('Check/Dump Firmware', P('unsupported', report=OP.REPORT))
         if messagebox.askyesno('Check/Dump Firmware', P('check_done', result=v['text'])):
             DUMPS.mkdir(exist_ok=True); dst = DUMPS / time.strftime('om108_dump_%Y-%m-%d_%H%M%S.bin')
             shutil.copyfile(v['file'], dst); self.say(f'Saved: {DUMPS.name}/{dst.name}')

@@ -42,6 +42,15 @@ def ident_sectors(regs):
     rest = [s for s in range(0x39000, FW_END, SECTOR) if s not in rset]
     return code + rest[::max(1, len(rest) // 16)][:16]
 sha = lambda b: hashlib.sha256(b).hexdigest()
+REPORT = 'https://github.com/johnnywagner/Omnichord-OM-108-Custom-Firmware/issues'
+OTHER_STOCK = 'a factory firmware version this tool does not support yet'
+def other_stock(d):
+    """An unknown firmware with no sign of a mod (the area every mod writes, 0x60039000-0x60047FFF, is blank, as on a
+    stock unit): most likely a factory firmware version other than KNOWN_STOCK. The mod patches fixed addresses, so it is
+    never installed on one (issue #4: a revision whose code moved by up to 0x1E4 bytes). The top of the chip, where the
+    mod puts samples (0x60DA0000-), must be blank too, so a cut install or restore is not taken for one."""
+    return sha(d[:FW_END]) not in KNOWN_STOCK and d[0x39000:0x48000] in (b'\xff' * 0xF000, b'\x00' * 0xF000) \
+        and d[0xDA0000:FW_END] == b'\xff' * (FW_END - 0xDA0000)
 BLANK = {}
 def blank_sha(n):
     if n not in BLANK: BLANK[n] = sha(b'\xff' * n)
@@ -396,6 +405,10 @@ class Patcher:
             except Stop: mod = False
             if mod: raise Stop('this unit already has the mod installed, so it can\'t be backed up as stock. If you have its '
                                'original backup, use:  python3 om108_patcher.py import-backup <file>')
+            if other_stock(b):
+                raise Stop(f'this unit has {OTHER_STOCK}: it is not the one this patcher knows, which the custom firmware '
+                           f'is made for (saved as {bad}). Nothing was changed. Please don\'t install; report it at {REPORT} '
+                           'so support can be added.')
             raise Stop(f'this unit\'s firmware is not the one this patcher knows (saved as {bad}). Nothing was changed. '
                        'Please don\'t install; send the log in logs/ to the mod\'s author.')
         os.replace(part, self.backup_file)
@@ -405,6 +418,7 @@ class Patcher:
     def cmd_import(self, path):
         b = Path(path).read_bytes()
         if len(b) != SIZE: raise Stop(f'{path} is not a full 16 MB dump')
+        if other_stock(b): raise Stop(f'{path} is not the stock firmware this patcher knows: it looks like {OTHER_STOCK}')
         if sha(b[:FW_END]) not in KNOWN_STOCK: raise Stop(f'{path} is not the stock firmware this patcher knows')
         if self.backup_file.exists():
             if self.backup_file.read_bytes()[:FW_END] == b[:FW_END]: self.say('That backup is already in place.'); return
@@ -513,6 +527,7 @@ class Patcher:
         if rec is not None and h == rec[0]['target_fw_sha256']: return 'the Suggested Default firmware', 'mod'
         if rec is not None and h in {L['target_fw_sha256'] for L in rec[0]['legacy']}:
             return 'an earlier version of the Suggested Default firmware (Install brings it up to date)', 'legacy'
+        if other_stock(d): return OTHER_STOCK + ' (nothing was changed; please don\'t install)', 'unsupported'
         if rec is None or backup is None: return 'a User Generated Custom Firmware', 'unknown'
         s = settings_from_block(d[CFG_OFF:CFG_OFF + 64])
         if s and h == sha(build_image(backup, rec, s)[:FW_END]): return 'a User Generated Custom Firmware (made with this tool)', 'custom'

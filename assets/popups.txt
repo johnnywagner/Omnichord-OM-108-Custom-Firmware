@@ -7,6 +7,13 @@
 
 is not the known stock OM-108 firmware (its checksum differs). Move it out of the my_unit/backups folder, then start the tool again.
 
+If it is a copy of your own unit's original firmware, your OM-108 probably has a different factory firmware version, which this tool does not support yet. Please don't install; report it at {report} so support can be added.
+
+[unsupported]
+Your Omnichord OM-108 has a factory firmware version this tool does not support yet: it is not the one the custom firmware was made for, and installing it could stop the unit from working. Nothing was changed on your unit.
+
+Please don't install. Report it at {report} so support can be added.
+
 [stock_missing]
 The stock firmware file is missing:
 
