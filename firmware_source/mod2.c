@@ -80,7 +80,8 @@ typedef unsigned char u8; typedef signed char s8; typedef unsigned int u32;
 #define CF_MOD     0x01u           /* modulation modes (else: always Note Off, Gb 7th / Db / Gb minor stock) */
 #define CF_EXTRAS  0x02u           /* 27 mode, the alternate bass, jazz, the third Manual/Auto state */
 #define CF_SPOKEN  0x04u           /* spoken rhythm / modulation mode names */
-#define CF_DEFAULT 0x3Fu
+#define CF_KTR     0x40u           /* keyboard notes follow Transpose (issue #2; stock: they never do) */
+#define CF_DEFAULT 0x7Fu
 #define CLK_DEFAULT 0x18u          /* P4 / P5 (2.82) */
 static int cfg_ok(void) { return R32(CFG) == CFG_MAGIC && R32(CFG + 60u) == ~CFG_MAGIC && R8(CFG + 4u) == 1u; }
 u32 cf(u32 bit) { return (cfg_ok() ? R8(CFG + 5u) : CF_DEFAULT) & bit; }   /* (global: the tests call it) */
@@ -154,11 +155,14 @@ typedef struct {
     s8 sh0, sh1; u8 vsel, vdn;     /* jazz: the 3rd / 5th chord oscillators' shifts in semitones (chord_tick); mode picked
                                       with a voice button while Gb 7th is held (1-5, 0 none); voice buttons down (hidden from the stock) */
     u8 voff[5], von;               /* voice buttons' release counters; the analog vibrato is on (vib_tick) */
+    s8 ktr;                        /* issue #2: the Transpose keyboard notes get (kt_tick; 0 with CF_KTR off); in the padding
+                                      before vc, so the size (and what r27() clears) stays as 2.86's */
     int vc;                        /* the analog vibrato's offset (1/256 cent), kept for an_write */
     u8 mpre, mfrom, mflag, moff;   /* 2.79 Manual/Auto: its state just before the stock took this press of the button (MA_*);
                                       the state before the third one was turned on; MF_* flags; KEYBOARD release counter */
 } r27_t;
 _Static_assert(sizeof(r27_t) <= 0x20002CD4u - R7B, "r27_t too big");
+_Static_assert(sizeof(r27_t) == 72 && __builtin_offsetof(r27_t, ktr) == 62, "r27_t: as 2.86 (test_led L2)");
 _Static_assert(__builtin_offsetof(r27_t, c) == 26 && __builtin_offsetof(r27_t, rst) == 35 && __builtin_offsetof(r27_t, vsel) == 54
                && __builtin_offsetof(r27_t, von) == 61 && __builtin_offsetof(r27_t, vc) == 64, "test offsets");
 static r27_t *r27(void);
@@ -724,7 +728,8 @@ static ui_t *ui(void) {
     }
     return U;
 }
-static int menu_on(void) { ui_t *U = (ui_t *)UIB; return (U->magic == UMAGIC && U->menu != MENU_MODE) ? (int)U->menu : 0; }   /* 0 or a sounding MENU_* */
+static int menu_sus(void);
+static int menu_on(void) { ui_t *U = (ui_t *)UIB; return (U->magic == UMAGIC && U->menu != MENU_MODE && !menu_sus()) ? (int)U->menu : 0; }   /* 0 or a sounding MENU_* */
 static pl_t *pl(void) {
     pl_t *P = (pl_t *)PLB;
     if (P->magic != PMAGIC) {
@@ -1145,6 +1150,13 @@ static int note_held(void) {
     for (u32 k = 13u; k <= 35u; k++) if (((NOTE_KEYS >> k) & 1ull) && R8(KEY(k) + 4u)) return 1;
     return 0;
 }
+/* ---- keyboard notes follow Transpose (issue #2, the tool's switch CF_KTR; on stock they never do: the manual) ----
+   The stock keyboard notes (0x30 + key + octave x 12) get the Transpose (DE79, -6..+6) added on their way out: the sample
+   note-ons (kb_noteon) and the MIDI note-ons / note-offs (kb_mon / kb_moff, both MIDI channels). The amount is latched
+   (ktr) only while no keyboard note is held (control task, before the stock handler), so a note's MIDI note-off always
+   matches its note-on when T + Up / Down is pressed while it sounds; the change applies from the next note. */
+static void kt_tick(void) { r27_t *S = r27(); if (!note_held()) S->ktr = cf(CF_KTR) ? RS8(DE79) : 0; }
+u32 kb_note(u32 note) { int n = (int)note + r27()->ktr; return (u32)(n < 0 ? 0 : n > 127 ? 127 : n); }
 
 /* ---------------- 2.60: 27 mode - PATTERN buttons ----------------
    In 27 mode the six PATTERN buttons (yellow 0x2D = LATIN, 0x28-0x2C = ROCK FOXTROT SLOW-ROCK WALTZ SWING) never reach the
@@ -1345,7 +1357,14 @@ u32 row_filter(u32 row, u32 bits) {
             if (S->vdn & m) bits &= ~b;   /* hidden from the stock until let go: the voice doesn't change */
         }
     }
-    u32 cfg = U->menu && U->menu != MENU_KVIB;       /* 2.48: the keyboard effect is no menu: Up/Down stay stock (2.53: mode selection is) */
+    u32 cfg = U->menu && U->menu != MENU_KVIB && !menu_sus();   /* 2.48: the keyboard effect is no menu: Up/Down stay stock (2.53: mode
+                                                                  selection is); #5: nor a menu under P / T (theirs, as stock) */
+    /* 2026-10-30 (#5): a menu blocks a new note only while its own button is really down (its raw bit, latest scan, as the
+       Gb 7th + voice pick): the stock keeps the button "pressed" for 30 scans after it is let go and the menu closes only then,
+       so a note played in those 30 ms was swallowed (hidden until let go). (Up / Down stay the menu's until it closes: its
+       display flag DE78 makes the stock read them as Transpose.) */
+    u32 mkey = U->menu == MENU_DEPTH ? 12u : U->menu == MENU_SPEED ? 0x32u : U->menu == MENU_MODE ? 0x35u : 0xFFu;
+    u32 grab = cfg && (mkey == 0xFFu || R8(KEY(mkey)));
     /* 2.85: with no menu up and nothing hidden this loop changes nothing (a press neither hides nor sets hid; a release
        clears a bit already clear), so it is skipped: it was most of our work per control tick (the 2.84 LED lag) */
     if (row <= 3u && (cfg || U->hid))                 /* 2.49: menus block the keyboard notes; hidden until let go */
@@ -1353,7 +1372,7 @@ u32 row_filter(u32 row, u32 bits) {
             u32 k = row * 9u + c;
             if (k < 4u || !(((NOTE_KEYS >> k) & 1ull))) continue;     /* 2.53: notes only - drum pads play, as stock T / P */
             u32 b = colbit(k), m = 1u << (k - 4u);
-            if (bits & b) { if (cfg) U->hid |= m; if (U->hid & m) bits &= ~b; }
+            if (bits & b) { if (grab) U->hid |= m; if (U->hid & m) bits &= ~b; }
             else U->hid &= ~m;
         }
     if (row != 0u) return bits;
@@ -1385,6 +1404,10 @@ u32 row_filter(u32 row, u32 bits) {
 #define TRBUF 0x2000010Cu
 #define DE73 0x2000DE73u
 #define DE78 0x2000DE78u
+/* Issue #1: 0x6000E850(1) sets every voice's release byte to the cut used for the all-off; the stock always pairs it with
+   DE77 = 1, and its control loop puts the release back (0x6000E850(0)) 20 scans later (kept at 1 only in keyboard mode with
+   Omni 1). Without DE77 the cut stayed, and keyboard notes ignored Sustain until keyboard mode was left. */
+#define DE77 0x2000DE77u
 static void show_menu(ui_t *U) {
     if (U->menu == MENU_SPEED) { U->disp = (s8)spd(); F_LEDDISPT(&U->disp); }   /* voice LED row, as transpose */
     else { U->disp = (s8)((int)depth_idx() - 6); F_LEDDISP(&U->disp);           /* pattern LED row, as master tune */
@@ -1396,7 +1419,7 @@ static void menu_enter(ui_t *U, u32 which) {
     if (which == MENU_KVIB) return;      /* 2.48: no test tone, no display, nothing stock touched */
     U->pad = (u8)(0x80u | (R8(DE78) ? 1u : 0u) | (R8(DE73) ? 2u : 0u));
     R8(DE73) = 0u; R8(DE78) = 1u;        /* both menus: the refresh redraws the voice row from the transpose display buffer */
-    F_E850(1u); F_ALLOFF(); F_E7DC(12u); F_NOTEON(0u, 0x51u);   /* same sequence as the stock P key (0x6000C22C) */
+    F_E850(1u); F_ALLOFF(); R8(DE77) = 1u; F_E7DC(12u); F_NOTEON(0u, 0x51u);   /* same sequence as the stock P key (0x6000C22C) */
     show_menu(U);
 }
 static void menu_exit(ui_t *U) {
@@ -1405,7 +1428,7 @@ static void menu_exit(ui_t *U) {
     if (was == MENU_KVIB) return;
     if ((U->pad & 0x80u) && LED(0x15)) { R8(DE78) = (u8)(U->pad & 1u); R8(DE73) = (u8)((U->pad >> 1) & 1u); }
     U->pad = 0;                         /* closed by leaving keyboard mode: the stock code has already cleared DE78/DE73 */
-    F_LEDREST(); F_E850(1u); F_ALLOFF();                          /* as the stock P release (0x6000C1DC) */
+    F_LEDREST(); F_E850(1u); F_ALLOFF(); R8(DE77) = 1u;           /* as the stock P release (0x6000C1DC) */
     F_E7DC(R8(DE89) + (LED(0x15) ? 12u : 0u));
 }
 /* ---- 2.53 modulation-mode selection (Gb 7th, keyboard mode, every mode) ----
@@ -1418,7 +1441,7 @@ static void menu_exit(ui_t *U) {
    and Up / Down never reach the stock octave code (row_filter, as in the menus). */
 #define MTB      0x20002BF0u             /* mt_t: free since 2.38 (after fx_t) */
 #define MTMAGIC  0x4D543533u
-typedef struct { u32 magic, t0; u8 used, blink, lock, pad, ph, r[3]; } mt_t;
+typedef struct { u32 magic, t0; u8 used, blink, lock, pad, ph, above, pt, slot; } mt_t;   /* above / pt / slot: the P / T stack (#5) */
 _Static_assert(sizeof(mt_t) <= 0x20002C08u - MTB, "mt_t too big");
 #define BLINK_MS  800u                   /* 3 blinks: 6 equal on / off phases */
 static mt_t *mt(void) {
@@ -1451,6 +1474,43 @@ static void mode_end(mt_t *M) {         /* stock display flags back, LEDs redraw
     if ((M->pad & 0x80u) && LED(0x15)) { R8(DE78) = (u8)(M->pad & 1u); R8(DE73) = (u8)((M->pad >> 1) & 1u); }
     M->pad = 0; M->blink = 0;
     F_LEDREST();
+}
+/* ---- 2026-10-30 (#5, the owner): P, T and the depth / speed menus stack, as the stock P and T do with each other: the
+   newest press is shown (a menu under P / T is suspended: no display, no audition, Up / Down and notes go to the stock);
+   letting it go returns to whichever is still held, including P's reference tone and the tune / transpose LEDs (the
+   stock's own release routine 0x6000C1A4: 0 = T let go, back to P; 1 = P let go, back to T); all let go = normal play.
+   above = P / T pressed while a menu was up (bit 0 T, bit 1 P); pt = P / T held last tick (the stock's held flags); slot =
+   the voice slot the engine played when the menu came on top (put back when T is shown again: the stock P / T state,
+   which keeps slot 12 after P, a stock quirk). ---- */
+#define VSLOT 0x20007604u                                /* stock: the voice slot 0x6000E7DC selected */
+#define PT_HELD 0x2000029Cu                              /* stock: key k held = +k*3+2 (T = +2, P = +5) */
+#define F_C1A4 ((void(*)(u32))0x6000C1A5)
+static u32 pt_held(void) { return (R8(PT_HELD + 2u) ? 1u : 0u) | (R8(PT_HELD + 5u) ? 2u : 0u); }
+static int menu_sus(void) {
+    const ui_t *U = (const ui_t *)UIB; const mt_t *M = (const mt_t *)MTB;
+    return U->magic == UMAGIC && M->magic == MTMAGIC && M->above && (U->menu == MENU_DEPTH || U->menu == MENU_SPEED);
+}
+static void pt_stack(ui_t *U, mt_t *M) {
+    u32 pt = pt_held(), was = M->above;
+    if (LED(0x15) && (U->menu == MENU_DEPTH || U->menu == MENU_SPEED)) {
+        M->above = (u8)((M->above | (pt & ~M->pt)) & pt);
+        if (!was && M->above && !(pt & 2u)) F_E7DC(M->slot);       /* T on top, no P: its voice slot again (not the tone's) */
+        if ((was && !M->above) || (!was && (M->pt & ~pt))) {         /* on top again / P or T under it let go (the stock redrew) */
+            if (!was) { R8(DE73) = (u8)(pt >> 1); R8(DE78) = (u8)(pt & 1u); }   /* under it now (the stock's release
+                                                                     routine ran on the menu's display flags): the one still held */
+            M->slot = R8(VSLOT); menu_enter(U, U->menu);
+        }
+    } else M->above = 0;
+    M->pt = (u8)pt;
+}
+static void menu_close(ui_t *U, mt_t *M) {
+    u32 pt = pt_held();
+    if (U->menu == MENU_KVIB || !LED(0x15) || (!pt && !M->above)) { menu_exit(U); M->above = 0; return; }
+    u32 back_p = (pt & 2u) && (!(pt & 1u) || (U->pad & 2u));   /* P under it (on top of T if both: P was shown) */
+    u32 sus = M->above;
+    U->menu = 0; U->ev = 0; U->pad = 0; M->above = 0;
+    if (!sus) F_C1A4(back_p ? 0u : 1u);                         /* P / T on top already: it stays as it is */
+    if (!sus && !(pt & 2u)) F_E7DC(M->slot);                    /* back to T: its voice slot again (not the reference tone's) */
 }
 static void ui_tick(void) {
     ui_t *U = ui();
@@ -1517,10 +1577,11 @@ static void ui_tick(void) {
             want = note_held() ? (man ? 0u : MENU_KVIB) : (dk ? MENU_DEPTH : (man ? 0u : MENU_SPEED));
     }
     if (U->menu != MENU_MODE) {
-        if (want && !U->menu) { if (M->blink) mode_end(M); menu_enter(U, want); }
-        else if (!want && U->menu) menu_exit(U);
+        if (want && !U->menu) { if (M->blink) mode_end(M); M->slot = R8(VSLOT); menu_enter(U, want); }
+        else if (!want && U->menu) menu_close(U, M);
     }
-    if (U->menu == MENU_DEPTH || U->menu == MENU_SPEED) {
+    pt_stack(U, M);
+    if ((U->menu == MENU_DEPTH || U->menu == MENU_SPEED) && !M->above) {
         u8 ev = U->ev; U->ev = 0;
         if (ev) {
             if (U->menu == MENU_SPEED) {
@@ -2524,6 +2585,7 @@ void c274_wrap(void) {                   /* replaces bl c274 in the control loop
     r27_tick();                          /* 2.60 (before the snapshot: it saves the 27 selection) */
     kb_blink_tick();                     /* 2.65 / 2.80: the keyboard LED blink, any mode */
     pluck_tick();                        /* 2.64 */
+    kt_tick();                           /* issue #2 */
     if (R8(ST) == 0x5A) snapshot();
     ui_tick();
 #ifdef DIAG

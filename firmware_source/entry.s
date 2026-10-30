@@ -33,6 +33,9 @@ _entry:
     b.w plate_on        @ +0x6C  2.86: strum plate note-on in the plate scanner (bl 0x600186D8 at 0x6000A2E4 / 0x6000A47E)
     b.w plate_off       @ +0x70  2.86dev2: strum plate release in the plate scanner (bl 0x60018708 at 0x6000A506 / 0x6000A52E)
     b.w chord_dec       @ +0x74  2.86dev8: the chord decoder (bl 0x6000B468 at 0x6000CCFE / 0x6000D750): the m6 combination
+    b.w kb_noteon       @ +0x78  issue #2: keyboard sample note-ons (bl 0x600186D8 at 0x6000B760 / B9BA / CBD2 / D284 / D71E)
+    b.w kb_mon          @ +0x7C  issue #2: keyboard MIDI note-ons (bl 0x600096A0 at 0x6000B9DE / 0x6000BA04)
+    b.w kb_moff         @ +0x80  issue #2: keyboard MIDI note-offs (bl 0x600096D4 at 0x6000BB6A / BB8C / BC6E / BC94)
 
     .text
     .thumb_func
@@ -184,3 +187,23 @@ led_prio:
     str.w   ip, [sp]
     str     r3, [sp, #4]
     bx      lr
+
+@ issue #2: the keyboard notes (r1) through kb_note (+ the latched Transpose, CF_KTR), then the stock routine with r0, r2, r3,
+@ the stack argument and lr exactly as the caller set them.
+    .macro KBNOTE name, target
+    .text
+    .thumb_func
+    .global \name
+\name:
+    push    {r0, r2, r3, lr}
+    mov     r0, r1
+    bl      kb_note
+    mov     r1, r0
+    pop     {r0, r2, r3, lr}
+    ldr     ip, =\target
+    bx      ip
+    .ltorg
+    .endm
+    KBNOTE kb_noteon, 0x600186D9
+    KBNOTE kb_mon, 0x600096A1
+    KBNOTE kb_moff, 0x600096D5

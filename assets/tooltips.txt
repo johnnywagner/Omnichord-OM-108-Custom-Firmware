@@ -130,6 +130,10 @@ Each mode's settings are saved automatically and are unique to that mode.
 The unit announces the rhythm mode chosen at power-on ([PATTERN (swing/waltz)]: “84 mode”, [PATTERN (country/bossanova)]: “108 mode”, [PATTERN (slow rock/funk)]: “27 mode”) and the modulation mode selected by tapping the “G♭-7th” chord button. I recommend leaving this on.
 **Off:** the modes still change and the LEDs still show them; nothing is spoken.
 
+[kb_transpose]
+In keyboard mode, the chromatic keyboard notes follow the Transpose setting, like the chords and the strumplate do (MIDI out too). If you change Transpose while holding a note, the new setting starts with the next note you play.
+**Off:** the stock behavior: keyboard notes ignore Transpose.
+
 [install]
 Writes the custom firmware onto the unit, made from your stock firmware file and the settings chosen above.
 **Flashing Instructions:**
@@ -152,4 +156,4 @@ Connect it the same way as for Install Firmware.
 Sets every choice back to the Suggested Default: the recommended setup, with every feature on and JohnnyW's recommended MIDI and sub sound configuration.
 
 [stock]
-The stock firmware file (my_unit/backups/om108_backup.bin): your unit's original firmware. Every custom firmware created by this tool is generated from it.
+The stock firmware file (my_unit/backups/om108_backup_v29.bin): your unit's original firmware. Every custom firmware created by this tool is generated from it.

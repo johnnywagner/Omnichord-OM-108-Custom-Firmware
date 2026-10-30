@@ -13,6 +13,24 @@ The full guide to the new features on the instrument is the one-page **[User Man
 > as is, without any warranty. Modifying your instrument's firmware is at your own risk. It was built and tested on one
 > OM-108; units running firmware the tool doesn't recognise are refused, never written.
 
+> **Which units are supported:** OM-108s with factory firmware **1.0.2.9**. Units made from about mid-2025 on have a
+> newer factory firmware (**1.0.3.0**) that isn't supported yet. The tool tells you so after Check/Dump Firmware and
+> changes nothing. Support is being worked on in
+> [issue #4](https://github.com/johnnywagner/Omnichord-OM-108-Custom-Firmware/issues/4).
+
+## What's new (tool 1.2)
+- **Keyboard Transpose** (new Bonus Feature, on by default): keyboard-mode notes follow the Transpose setting, for both
+  the sound and MIDI out. Untick it for the stock behaviour, where keyboard notes are never transposed.
+- **Fixed:** after using the D♭-minor / G♭-minor menus in keyboard mode, notes no longer lost their Sustain release
+  ([#1](https://github.com/johnnywagner/Omnichord-OM-108-Custom-Firmware/issues/1)).
+- **Fixed:** a keyboard note played right after letting go of a menu button was silent.
+- **Changed:** holding [P] or [T] together with the D♭-minor / G♭-minor menus now works like the stock [P] and [T]: the
+  newest button shows, and letting go returns to the one still held.
+- **Tool:** a unit with a factory firmware version the tool doesn't support yet is named clearly instead of failing with
+  a checksum error, and the stock backup and dumps now carry the factory version in their file names.
+- Units already running the custom firmware update with **Install Firmware** as usual; there's no need to restore stock
+  first.
+
 ## Quick start
 **Setup (once):**
 1. Install Python 3.9 or newer with tkinter. For single purpose tools like this, I recommend something like
@@ -26,7 +44,7 @@ The full guide to the new features on the instrument is the one-page **[User Man
 2. Your unit must be on its original (stock) firmware. Turn the Omnichord off, leaving the batteries in. Remove the
    battery cover and set the **PLAY/UPDATE** switch to **UPDATE** with a small screwdriver or similar tool, connect USB
    and click **Check/Dump Firmware**. This only reads the unit, and saves its stock firmware in
-   `my_unit/backups/om108_backup.bin`.
+   `my_unit/backups/om108_backup_v29.bin` (the number is your unit's factory firmware version: 29 = 1.0.2.9).
 3. **Keep a copy of that file somewhere safe:** it is your way back to stock.
 4. Choose your settings and click **Install Firmware**. **During all reads and writes, the red power button must be held
    down** until the log says DONE; if it is released during a transfer, just start over.
@@ -91,6 +109,8 @@ combining Manual chords with the Auto bass (both LEDs lit).
 
 ### Other changes
 - **Saved Settings:** all your settings are now saved between power-offs, except for the new Jazz Mode.
+- **Keyboard Transpose:** keyboard-mode notes follow the Transpose setting (stock: they never do). A note already held
+  keeps its pitch when Transpose changes; the change starts with the next note.
 - **Factory reset** (both [VOICE] and [PATTERN] left buttons (yellow) held while switching on) now sets the battery type
   to Ni-MH, and also clears the saved settings.
 - **MIDI:** the stock MIDI CC out messages (Volume & Release) are removed, making room for a fifth MIDI preset, P5.
@@ -142,7 +162,7 @@ when switching chords.
   preset, and the Drum MIDI Remap.
 - **Sub Sounds:** the sub sound and the alternate sub sound for every voice.
 - **Bonus Features:** Modulation Modes, Extras (OM-27 mode, Alternate Bass, Jazz Mode, 3rd Manual/Auto State), Spoken
-  Mode Names, Electric Harp, Better Clap.
+  Mode Names, Keyboard Transpose, Electric Harp, Better Clap.
 - **Always included:** Saved Settings and the stock firmware bug fixes.
 - **Suggested Default** sets every choice back to the recommended setup, with every feature on.
 
