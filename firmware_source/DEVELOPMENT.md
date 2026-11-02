@@ -7,7 +7,9 @@ Cortex-M, Thumb-2), and equally usable as context for an AI coding assistant.
 ## What exists
 - **The Custom Firmware Tool** (repo root, `om108_gui.py` + `assets/om108_patcher.py`) reads the unit, saves its stock
   firmware, and installs / restores firmware over USB. Its recipe `assets/om108_mod.patch` holds this project's bytes only.
-- **The modification's source** (this folder): `mod2.c` + `entry.s` (+ `link.ld`, `build.sh`: clang / LLVM, Cortex-M7).
+- **The modification's source** (this folder): `mod2.c` + `entry.s` + `mod1.s` / `mod1_syms.s` (+ `link.ld`, `build.sh`:
+  clang / LLVM 18, Cortex-M7). Stock addresses are written `FL(0x6000xxxx)` / `RA(0x2000xxxx)` as 1.0.2.9 addresses;
+  `stock.py` (addresses only) maps them to each factory version, and `build.sh` builds one binary per version.
 - **Raw notes from the reverse engineering** (`notes/`): hardware and flashing, the stock firmware map (addresses,
   tasks, variables, the sound engine, MIDI), the touch chip, this mod's architecture, lessons learned, and the flash
   tables. The notes were written during development:
@@ -17,16 +19,16 @@ Cortex-M, Thumb-2), and equally usable as context for an AI coding assistant.
 
 ## What you need first
 1. **Your unit's stock firmware.** Run the tool's **Check/Dump Firmware** on a stock unit; it saves
-   `my_unit/backups/om108_backup.bin`. Everything here was built on one firmware, SHA-256
-   `7d2abfa63ddde3d4ba75ed455cb72e21b8fe2bcc3996b017ea47051da80fa9b4`. A different stock version is unsupported until
+   `my_unit/backups/om108_backup_v29.bin` (factory firmware 1.0.2.9) or `om108_backup_v30.bin` (1.0.3.0). The two
+   supported versions are listed by hash in `assets/om108_patcher.py` (`KNOWN_STOCK`); any other is unsupported until
    verified.
 2. **Reference images**, rebuilt from that file and the recipe (run from the repo root):
    ```python
    import sys; sys.path.insert(0, 'assets'); import om108_patcher as P
-   stock = open('my_unit/backups/om108_backup.bin', 'rb').read()
-   rec = P.load_recipe('assets/om108_mod.patch')
+   stock = open('my_unit/backups/om108_backup_v29.bin', 'rb').read()   # or _v30
+   rec = P.load_recipe('assets/om108_mod.patch', stock)              # the variant for this factory version
    suggested = P.build_image(stock, rec, P.default_settings())   # what Install writes with the default settings
-   for name, img in P.legacy_images(stock, rec): print(name)      # full images of releases 2.85 and 2.86
+   for name, img in P.legacy_images(stock, rec): print(name)      # earlier releases the tool recognises (1.0.2.9)
    ```
 
 ## How the modification works (short)
