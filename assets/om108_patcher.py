@@ -11,6 +11,7 @@ that backup plus the mod's own bytes (om108_mod.patch). Keep the backup safe: it
   python3 om108_patcher.py scan              read only: reads the whole unit, says what is on it, keeps the copy in
                                              work/last_read.bin (and saves it as the backup if it is stock and none exists)
   python3 om108_patcher.py import-backup F   use an existing full dump F (16 MB) as the backup
+  python3 om108_patcher.py install-stock F   diagnostics: put the factory firmware in F (1.0.2.9 or 1.0.3.0) on the unit
 
 Before each: rear switch to UPDATE, USB cable in, then hold the power button until the patcher says DONE. If it stops
 (button let go, cable out), just run the same command again: it carries on safely.
@@ -61,12 +62,17 @@ def other_stock(d):
         and d[0xDA0000:FW_END] == b'\xff' * (FW_END - 0xDA0000)
 def stock_version(b): return STOCK_VERSIONS.get(sha(b[:FW_END]))
 def backup_name(v): return f'om108_backup_v{v}.bin'
+def unit_version(bdir):
+    """The factory version install-stock last put on this unit (None: the one its backup was made from)."""
+    try: return json.loads((Path(bdir) / 'om108_state.json').read_text()).get('factory_version')
+    except (OSError, ValueError, AttributeError): return None
 def find_backup(bdir):
-    """The stock firmware file in bdir (None if there is none): om108_backup_v<version>.bin of a supported version. A
-    backup made before the names carried the version (om108_backup.bin), or one tool 1.2 refused as a version it did not
+    """The stock firmware file in bdir (None if there is none): om108_backup_v<version>.bin of a supported version (the
+    one install-stock last put on the unit, when there are two). A backup made before the names carried the version (om108_backup.bin), or one tool 1.2 refused as a version it did not
     support yet (om108_backup_v<version>_not_supported_yet.bin), is renamed once it checks as stock; any other file of
     that name keeps it (and is reported as not stock)."""
-    bdir = Path(bdir)
+    bdir = Path(bdir); uv = unit_version(bdir)
+    if uv and (bdir / backup_name(uv)).exists(): return bdir / backup_name(uv)
     for v in sorted(STOCK_VERSIONS[h] for h in KNOWN_STOCK):
         if (bdir / backup_name(v)).exists(): return bdir / backup_name(v)
     for v in sorted(STOCK_VERSIONS[h] for h in KNOWN_STOCK):
@@ -563,6 +569,12 @@ class Patcher:
         self.plan(FW_END * 2 + 0x400000)                                         # read, (some) writes, read again
         d = u.read(0, FW_END)
         secs = [s for s in range(0, FW_END, SECTOR) if d[s:s + SECTOR] != backup[s:s + SECTOR]]
+        self._rewrite(u, d, backup, 'stock (full)')
+        self.say(f'DONE - FULL FACTORY RESTORE COMPLETE AND VERIFIED. You can let go of the power button. ({self.elapsed()})')
+    def _rewrite(self, u, d, target, label):
+        """Write target over every 4 KB sector of d (the unit, read whole) that differs, in regions of at most 32 KB (the
+        start-up area alone and last), each erased, written, read back and compared; then read the whole unit again."""
+        secs = [s for s in range(0, FW_END, SECTOR) if d[s:s + SECTOR] != target[s:s + SECTOR]]
         regs = []
         for s in secs:
             if s >= BOOT_END and regs and regs[-1][1] == s and regs[-1][0] >= BOOT_END and regs[-1][1] - regs[-1][0] < ERASE_MAX: regs[-1][1] = s + SECTOR
@@ -572,13 +584,39 @@ class Patcher:
         self.plan(len(secs) * SECTOR * 2.5 + FW_END)
         st = self.state()
         for i, (a, b) in enumerate(regs):
-            n = b - a; st['journal'] = dict(addr=a, len=n, to='stock (full)'); self.save_state(st)
-            u.erase(a, n); u.write(a, backup[a:b])
-            if u.read(a, n) != backup[a:b]: raise Stop('a write did not read back correctly. Run the same command again.')
+            n = b - a; st['journal'] = dict(addr=a, len=n, to=label); self.save_state(st)
+            u.erase(a, n); u.write(a, target[a:b])
+            if u.read(a, n) != target[a:b]: raise Stop('a write did not read back correctly. Run the same command again.')
             if i % 8 == 7 or i == len(regs) - 1: self.say(f'  {i + 1}/{len(regs)} regions written   ({self.elapsed()})')
-        if u.read(0, FW_END) != backup[:FW_END]: raise Stop('the unit does not read back as the stock firmware. Run the same command again.')
+        if u.read(0, FW_END) != target[:FW_END]: raise Stop('the unit does not read back as the stock firmware. Run the same command again.')
         st['installed'] = 'stock'; st['journal'] = None; st['pending'] = None; self.save_state(st)
-        self.say(f'DONE - FULL FACTORY RESTORE COMPLETE AND VERIFIED. You can let go of the power button. ({self.elapsed()})')
+
+    def cmd_install_stock(self, path):
+        """Diagnostics (the window: Install Factory Version, shown when work/stock_safety_copy/ holds both): put the
+        factory firmware in path (1.0.2.9 or 1.0.3.0, a full 16 MB stock file) on the unit, whatever it holds now. The
+        versions differ only in the program (0x60002000-0x60047FFF), so only the sectors that differ are written: never
+        the start-up area (it must already match, as on every unit seen) nor the top 8 KB (this unit's own settings).
+        The tool then uses that version's stock file (backups/om108_backup_v<version>.bin, made from path and this
+        unit's own top 8 KB), so Install and Restore work on it; install-stock with the other file goes back. If it is
+        cut off, the same command carries on."""
+        try: b = Path(path).read_bytes()
+        except OSError as e: raise Stop(f'{path} could not be read ({e})')
+        if len(b) != SIZE or sha(b[:FW_END]) not in KNOWN_STOCK: raise Stop(f'{path} is not a stock firmware file this tool knows')
+        v = stock_version(b)
+        self.say(f'Installing {KNOWN_STOCK[sha(b[:FW_END])]} (diagnostics).')
+        self.say('Connecting...'); u = self.unit(RW_FCB)
+        if u.read(0, BOOT_END) != b[:BOOT_END]: raise Stop('this unit\'s start-up area differs from that file. Nothing was changed.')
+        self.say('Reading the whole unit (about 40 s)...')
+        self.plan(FW_END * 2 + 0x100000)
+        d = u.read(0, SIZE)
+        dst = self.bdir / backup_name(v)
+        if not dst.exists():                 # this version's stock file for this unit: its own top 8 KB
+            self.bdir.mkdir(exist_ok=True); tmp = dst.with_suffix('.tmp'); tmp.write_bytes(b[:FW_END] + d[FW_END:]); os.replace(tmp, dst)
+        elif sha(dst.read_bytes()[:FW_END]) != sha(b[:FW_END]): raise Stop(f'{dst} is not that firmware. Nothing was changed.')
+        st = self.state(); st['factory_version'] = v; self.save_state(st); self.backup_file = dst
+        self._rewrite(u, d, b, f'stock v{v}')
+        self.say(f'DONE - {KNOWN_STOCK[sha(b[:FW_END])].upper()} INSTALLED AND VERIFIED (stock file now {self.bdir.name}/{dst.name}). '
+                 f'You can let go of the power button. ({self.elapsed()})')
 
     def what_is(self, d, backup, rec):
         """(text, kind) for a whole-unit copy d."""
@@ -646,7 +684,7 @@ class Patcher:
 
 def main(argv=None, tools_factory=None, folder=None, out=print, result=None):
     ap = argparse.ArgumentParser(description='OM-108 mod patcher', epilog=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('command', choices=['backup', 'install', 'restore', 'check', 'scan', 'import-backup'])
+    ap.add_argument('command', choices=['backup', 'install', 'restore', 'check', 'scan', 'import-backup', 'install-stock'])
     ap.add_argument('file', nargs='?')
     ap.add_argument('--settings', help='install: a settings file (JSON, written by the window); none = the Suggested Default')
     ap.add_argument('--full', action='store_true', help='restore: Full Factory Restore (every differing sector, the start-up area too)')
@@ -663,6 +701,9 @@ def main(argv=None, tools_factory=None, folder=None, out=print, result=None):
         if A.command == 'import-backup':
             if not A.file: raise Stop('say which file:  python3 om108_patcher.py import-backup <file>')
             p.cmd_import(A.file)
+        elif A.command == 'install-stock':
+            if not A.file: raise Stop('say which file:  python3 om108_patcher.py install-stock <file>')
+            p.cmd_install_stock(A.file)
         else:
             if A.command == 'install': v = p.cmd_install(A.settings)
             elif A.command == 'restore': v = p.cmd_restore_full() if A.full else p.cmd_restore()
