@@ -19,18 +19,22 @@ Needs Python 3.9+ and NXP's SPSDK (pip install spsdk), Mac / Windows / Linux, an
 ivt_flashloader_rt1020.bin in the same folder. Everything it reads and writes stays in the tool's folder: the tool's own
 files in assets/ (this script, the recipe, the flashloader), the unit's files in my_unit/ (backups, dumps, work, logs)."""
 import sys, os, json, struct, zlib, hashlib, time, argparse, io, contextlib, shutil, subprocess
+try: import lzma                  # the recipe's compression (format 3); in every standard Python, but a few builds lack it
+except ImportError: lzma = None
 from pathlib import Path
 
-TOOL_VERSION = '1.2'
+TOOL_VERSION = '1.3'
 HERE = Path(__file__).resolve().parent
 UNIT_DIR = HERE.parent / 'my_unit' if HERE.name in ('assets', '.assets') else HERE      # the unit's files (the tool folder's my_unit/)
 SIZE, BOOT_END, FW_END, SECTOR, ERASE_MAX, BASE = 0x1000000, 0x2000, 0xFFE000, 0x1000, 0x8000, 0x60000000
 SDP_ID, MB_ID = '0x1fc9:0x0130', '0x15a2:0x0073'
 # the stock firmware this mod was built on: SHA-256 of 0x60000000-0x60FFDFFF (the part every unit shares; the top 8 KB
 # holds each unit's own settings and is never written by this tool)
-KNOWN_STOCK = {'ed36679655347814183e36f69bacba8f3a317b30074a7538df55d3bf46de157f': 'OM-108 stock firmware 1.0.2.9'}
+# (2026-11: one per factory firmware version: the recipe has a variant for each, picked by this hash)
+KNOWN_STOCK = {'ed36679655347814183e36f69bacba8f3a317b30074a7538df55d3bf46de157f': 'OM-108 stock firmware 1.0.2.9',
+               '97de517e44c4700190d314480203f535590220271f56afa74085028d0d9e016f': 'OM-108 stock firmware 1.0.3.0'}
 # every factory version seen so far, by the same hash: its version digits (the stock test mode shows 1.0.2.9 / 1.0.3.0),
-# which name the backup (om108_backup_v29.bin). Only KNOWN_STOCK can be installed on; 1.0.3.0 (issue #4) not yet.
+# which name the backup (om108_backup_v29.bin / om108_backup_v30.bin). Only KNOWN_STOCK can be installed on.
 STOCK_VERSIONS = {'ed36679655347814183e36f69bacba8f3a317b30074a7538df55d3bf46de157f': '29',
                   '97de517e44c4700190d314480203f535590220271f56afa74085028d0d9e016f': '30'}
 FLASHLOADER = ('ivt_flashloader_rt1020.bin', 'bce4ccff076ca397dab2ffa72f260fcc8c7784a71ee532038cbdb4d2e4f0024a')
@@ -59,11 +63,17 @@ def stock_version(b): return STOCK_VERSIONS.get(sha(b[:FW_END]))
 def backup_name(v): return f'om108_backup_v{v}.bin'
 def find_backup(bdir):
     """The stock firmware file in bdir (None if there is none): om108_backup_v<version>.bin of a supported version. A
-    backup made before the names carried the version (om108_backup.bin) is renamed once it checks as stock; any other
-    file of that name keeps it (and is reported as not stock)."""
+    backup made before the names carried the version (om108_backup.bin), or one tool 1.2 refused as a version it did not
+    support yet (om108_backup_v<version>_not_supported_yet.bin), is renamed once it checks as stock; any other file of
+    that name keeps it (and is reported as not stock)."""
     bdir = Path(bdir)
     for v in sorted(STOCK_VERSIONS[h] for h in KNOWN_STOCK):
         if (bdir / backup_name(v)).exists(): return bdir / backup_name(v)
+    for v in sorted(STOCK_VERSIONS[h] for h in KNOWN_STOCK):
+        early = bdir / f'om108_backup_v{v}_not_supported_yet.bin'
+        try: ok = early.exists() and early.stat().st_size == SIZE and sha(early.read_bytes()[:FW_END]) in KNOWN_STOCK
+        except OSError: ok = False
+        if ok: os.replace(early, bdir / backup_name(v)); return bdir / backup_name(v)
     old = bdir / 'om108_backup.bin'
     if not old.exists(): return None
     try: b = old.read_bytes()
@@ -94,22 +104,44 @@ def find_file(name, want_sha):
             return p
     raise Stop(f'{name} not found in the tool\'s files ({HERE}). Copy the whole tool folder again (with its assets folder).')
 
-def load_recipe(path):
-    raw = zlib.decompress(Path(path).read_bytes())
+def load_recipes(path):
+    """Every variant of the recipe: [(header, runs, data)], one per factory firmware version (format 3; format 2 = one,
+    for 1.0.2.9)."""
+    b = Path(path).read_bytes()
+    if b[:6] == b'\xfd7zXZ\x00' and lzma is None:
+        raise Stop('this Python has no lzma module, which the tool needs: install Python from python.org (or Thonny), then run again')
+    try: raw = lzma.decompress(b) if b[:6] == b'\xfd7zXZ\x00' else zlib.decompress(b)     # format 3: xz; format 2: zlib
+    except (zlib.error, Exception if lzma is None else lzma.LZMAError): raise Stop(f'{path} is damaged')
     if raw[:8] != b'OM108RCP': raise Stop(f'{path} is not a patch file')
-    jl = struct.unpack_from('<I', raw, 8)[0]; hdr = json.loads(raw[12:12 + jl]); o = 12 + jl
-    if hdr.get('format') != 2: raise Stop(f'{path} is for another version of this tool')
+    jl = struct.unpack_from('<I', raw, 8)[0]; top = json.loads(raw[12:12 + jl]); o = 12 + jl
+    if top.get('format') == 2: hdrs = [top]
+    elif top.get('format') == 3: hdrs = top['variants']
+    else: raise Stop(f'{path} is for another version of this tool')
     def take(n_runs):
         nonlocal o
         runs = [struct.unpack_from('<II', raw, o + 8 * i) for i in range(n_runs)]; o += 8 * n_runs
         return runs
-    runs = take(hdr['runs']); data = raw[o:o + hdr['data_len']]; o += hdr['data_len']
-    if len(data) != hdr['data_len'] or sha(data) != hdr['data_sha256']: raise Stop(f'{path} is damaged')
-    for L in hdr['legacy']:                  # earlier releases this tool recognises (only their own bytes)
-        L['_runs'] = take(L['runs']); L['_data'] = raw[o:o + L['data_len']]; o += L['data_len']
-        if sha(L['_data']) != L['data_sha256']: raise Stop(f'{path} is damaged')
+    out = []
+    for hdr in hdrs:
+        runs = take(hdr['runs']); data = raw[o:o + hdr['data_len']]; o += hdr['data_len']
+        if len(data) != hdr['data_len'] or sha(data) != hdr['data_sha256']: raise Stop(f'{path} is damaged')
+        for L in hdr['legacy']:              # earlier releases this tool recognises (only their own bytes)
+            L['_runs'] = take(L['runs']); L['_data'] = raw[o:o + L['data_len']]; o += L['data_len']
+            if sha(L['_data']) != L['data_sha256']: raise Stop(f'{path} is damaged')
+        out.append((hdr, runs, data))
     if o != len(raw): raise Stop(f'{path} is damaged')
-    return hdr, runs, data
+    return out
+
+def load_recipe(path, stock=None):
+    """The recipe for the unit whose stock firmware is `stock` (the backup, 16 MB): the variant made for that factory
+    firmware version. None: the first (1.0.2.9)."""
+    rs = load_recipes(path)
+    if stock is None: return rs[0]
+    h = sha(stock[:FW_END])
+    for r in rs:
+        if r[0]['stock_fw_sha256'] == h: return r
+    raise Stop(f'this tool\'s custom firmware has no version for this unit\'s factory firmware ({KNOWN_STOCK.get(h, "unknown")}). '
+               f'Nothing was changed. Please use the latest tool, or report it at {REPORT}')
 
 def put_runs(img, runs, data):
     o = 0
@@ -177,7 +209,8 @@ def settings_from_block(b):
     except Stop: return None
 # where the settings go (flash offsets; the dev kit's firmware tables)
 ROUTE, DRUMS = 0x39100, 0x39180           # mod 1: route[preset][internal channel] = MIDI channel - 1 (0xFF = not sent); drum note map
-VT_FLASH = 0x381E8                         # the voice table (copied to RAM at power-on): slot * 0x40 + layer * 16
+VT_FLASH = 0x381E8                         # the voice table (copied to RAM at power-on): slot * 0x40 + layer * 16 (1.0.2.9;
+                                           # the recipe variant's vt_flash says where it is in its factory firmware version)
 SUB_OFF = [0, 0x11, 0x11, 0x11, 0x11, 0x21, 0x21, 0x11, 0x11, 0x11]   # each voice's sub instrument byte (= mod2.c)
 BOOST_L = [0, 2, 2, 2, 2, 1, 0, 2, 2, 2]                               # Evolve's boost layer per voice (0 = none: FM Piano)
 def boost_vol(sub_vol): return (sub_vol * 52 + 63) // 127                # = mod2.c boost_set
@@ -190,6 +223,7 @@ def build_image(backup, recipe, d):
     img = bytearray(backup); put_runs(img, runs, data)
     if sha(img[:FW_END]) != hdr['target_fw_sha256']: raise Stop('internal error: the result does not match the mod')
     if d == default_settings(): return bytes(img)
+    vt = hdr.get('vt_flash', VT_FLASH)
     for p in range(5):                                            # MIDI routing
         for part, ch in PART_CH.items():
             m = d['midi'][part]; img[ROUTE + 16 * p + ch] = (m['channel'] - 1) if m['channel'] and m['presets'][p] else 0xFF
@@ -197,7 +231,7 @@ def build_image(backup, recipe, d):
     for v in range(1, 10):                                        # subs, and Evolve's boost layer
         n, a = fw_sub(v, d['subs'][v]['sub']), fw_sub(v, d['subs'][v]['alt'])
         for slot in ([v] if v == 1 else [v, v + 12]):
-            base = VT_FLASH + slot * 0x40; img[base + SUB_OFF[v]] = n
+            base = vt + slot * 0x40; img[base + SUB_OFF[v]] = n
             if BOOST_L[v]:
                 L = base + BOOST_L[v] * 16
                 if 1 in (n, a):
@@ -398,10 +432,15 @@ class Patcher:
         b = self.backup_file.read_bytes()
         if len(b) != SIZE or sha(b[:FW_END]) not in KNOWN_STOCK: raise Stop(f'{self.backup_file} is damaged or not a stock backup')
         return b
-    def recipe(self):
+    def recipe(self, backup=None):
+        """the recipe (its variant for the backup's factory firmware version)"""
         p = HERE / RECIPE
         if not p.exists(): raise Stop(f'{RECIPE} not found next to the patcher')
-        return load_recipe(p)          # checked by its own hashes
+        return load_recipe(p, backup)  # checked by its own hashes
+    def recipes(self):
+        p = HERE / RECIPE
+        if not p.exists(): raise Stop(f'{RECIPE} not found next to the patcher')
+        return load_recipes(p)
 
     # -- backup: read only
     def cmd_backup(self):
@@ -421,8 +460,8 @@ class Patcher:
             v = stock_version(b)
             bad = self.bdir / (f'om108_backup_v{v}_not_supported_yet.bin' if v else 'unknown_unit_dump.bin'); os.replace(part, bad)
             try:
-                rec = self.recipe()
-                mod = h == rec[0]['target_fw_sha256'] or h in {L['target_fw_sha256'] for L in rec[0]['legacy']} or settings_from_block(b[CFG_OFF:CFG_OFF + 64]) is not None
+                mod = any(h == r[0]['target_fw_sha256'] or h in {L['target_fw_sha256'] for L in r[0]['legacy']} for r in self.recipes()) \
+                      or settings_from_block(b[CFG_OFF:CFG_OFF + 64]) is not None
             except Stop: mod = False
             if mod: raise Stop('this unit already has the mod installed, so it can\'t be backed up as stock. If you have its '
                                'original backup, use:  python3 om108_patcher.py import-backup <file>')
@@ -499,7 +538,7 @@ class Patcher:
         except (OSError, ValueError) as e: raise Stop(f'the settings file {path} could not be read ({e})')
 
     def cmd_install(self, settings=None):
-        backup = self.load_backup(); rec = self.recipe(); d = self.read_settings(settings)
+        backup = self.load_backup(); rec = self.recipe(backup); d = self.read_settings(settings)
         target = build_image(backup, rec, d); regs = regions_for(rec)
         self.say('Installing ' + ('the Suggested Default firmware' if d == default_settings() else 'a custom firmware with your settings') + '.')
         self.say('Connecting...'); u = self.unit(RW_FCB)
@@ -507,7 +546,7 @@ class Patcher:
         self.say(f'DONE - FIRMWARE INSTALLED AND VERIFIED. You can let go of the power button. ({self.elapsed()})')
 
     def cmd_restore(self):
-        backup = self.load_backup(); rec = self.recipe(); regs = restore_order(regions_for(rec))
+        backup = self.load_backup(); rec = self.recipe(backup); regs = restore_order(regions_for(rec))
         self.say('Connecting...'); u = self.unit(RW_FCB)
         self._flash(u, backup, [backup] + self.known_images(u, backup, rec), regs, 'stock')
         self.say(f'DONE - ORIGINAL FIRMWARE PUT BACK AND VERIFIED. You can let go of the power button. ({self.elapsed()})')
@@ -546,8 +585,9 @@ class Patcher:
         h = sha(d[:FW_END])
         if backup is not None and d[:BOOT_END] != backup[:BOOT_END]: return 'not the unit the stock firmware file was made from', 'other'
         if h in KNOWN_STOCK: return 'the original (stock) firmware', 'stock'
-        if rec is not None and h == rec[0]['target_fw_sha256']: return 'the Suggested Default firmware', 'mod'
-        if rec is not None and h in {L['target_fw_sha256'] for L in rec[0]['legacy']}:
+        recs = [rec] if backup is not None and rec is not None else (self.recipes() if rec is not None else [])   # (no backup: any version's)
+        if any(h == r[0]['target_fw_sha256'] for r in recs): return 'the Suggested Default firmware', 'mod'
+        if any(h in {L['target_fw_sha256'] for L in r[0]['legacy']} for r in recs):
             return 'an earlier version of the Suggested Default firmware (Install brings it up to date)', 'legacy'
         if other_stock(d): return OTHER_STOCK + ' (nothing was changed; please don\'t install)', 'unsupported'
         if rec is None or backup is None: return 'a User Generated Custom Firmware', 'unknown'
@@ -580,7 +620,7 @@ class Patcher:
                 if (off // 0x40000) % 8 == 7: self.say(f'  read {100 * (off + 0x40000) // SIZE:3d} %   ({self.elapsed()})')
         last = self.dir / 'work' / 'last_read.bin'; os.replace(part, last)
         d = last.read_bytes(); backup = self.backup_file.read_bytes() if self.backup_file.exists() else None
-        try: rec = self.recipe()
+        try: rec = self.recipe(backup)
         except Stop: rec = None
         r, kind = self.what_is(d, backup, rec)
         if kind == 'stock' and backup is None:
@@ -595,7 +635,7 @@ class Patcher:
         return res
 
     def cmd_check(self):
-        backup = self.load_backup(); rec = self.recipe(); regs = regions_for(rec)
+        backup = self.load_backup(); rec = self.recipe(backup); regs = regions_for(rec)
         self.say('Connecting (read only: nothing is written)...')
         u = self.unit(RO_FCB); self.plan(BOOT_END + sum(n for a, n in regs))
         if u.read(0, BOOT_END) != backup[:BOOT_END]: self.say('RESULT: not the unit the backup was made from.'); return 'other'
@@ -611,8 +651,13 @@ def main(argv=None, tools_factory=None, folder=None, out=print, result=None):
     ap.add_argument('--settings', help='install: a settings file (JSON, written by the window); none = the Suggested Default')
     ap.add_argument('--full', action='store_true', help='restore: Full Factory Restore (every differing sector, the start-up area too)')
     ap.add_argument('--result-json', action='store_true', help=argparse.SUPPRESS)   # for the window: last line = @@RESULT {json}
+    ap.add_argument('--tester', metavar='DIR', help=argparse.SUPPRESS)  # the window's tester mode: a simulated unit (om108_tester.py)
     A = ap.parse_args(argv)
+    if A.tester:                         # nothing is sent to USB: the unit is my_unit/tester/unit_flash.bin, the user's folder beside it
+        import om108_tester as T
+        tools_factory, folder = T.factory(A.tester), Path(A.tester) / T.USER
     p = Patcher(folder or UNIT_DIR, tools_factory, out)
+    if A.tester: p.say(T.MARK)
     if A.result_json: p.prog_out = lambda pct: print('@@PROGRESS %d' % pct, flush=True)
     try:
         if A.command == 'import-backup':

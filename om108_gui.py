@@ -13,14 +13,18 @@ until the stock firmware of your unit is in my_unit/backups/om108_backup_v29.bin
 the unit, which reads it (read only) and keeps it if it is the stock firmware.
 
 Version 0.23: Install Firmware installs the firmware with the choices in the window (MIDI, Sub Sounds, Bonus Features).
-Hold F while clicking Restore Stock Firmware for the Full Factory Restore. Hover over a heading or a checkbox for an explanation."""
+Hold F while clicking Restore Stock Firmware for the Full Factory Restore. Hover over a heading or a checkbox for an explanation.
+
+Tester mode (for the tool's author and testers): python3 om108_gui.py --tester (or OM108_TESTER=1) works on a simulated
+unit (assets/om108_tester.py, everything in my_unit/tester/): nothing is sent to USB, the real my_unit/ is only read."""
 import queue, sys, os, threading, traceback, hashlib, configparser, shutil, time, re, subprocess, json
 import importlib.util
 from pathlib import Path
 
 # NXP's SPSDK is required: without it the tool stops right here, like any Python script missing a package (v0.38, the
 # user: clearer for a beginner than finding it out in the window's log). OM108_NO_SPSDK_CHECK=1 skips it (tests only).
-if importlib.util.find_spec('spsdk') is None and not os.environ.get('OM108_NO_SPSDK_CHECK'):
+TESTER = '--tester' in sys.argv[1:] or bool(os.environ.get('OM108_TESTER'))   # tester mode: a simulated unit, no USB (no SPSDK needed)
+if importlib.util.find_spec('spsdk') is None and not os.environ.get('OM108_NO_SPSDK_CHECK') and not TESTER:
     raise ModuleNotFoundError("No module named 'spsdk'. This tool needs NXP's SPSDK. Install it with:  pip install spsdk"
                               "   (Thonny: Tools > Manage packages > spsdk > Install), then run the tool again.", name='spsdk')
 import tkinter as tk
@@ -32,6 +36,8 @@ if (HERE / '.assets').is_dir() and not (HERE / 'assets').exists():   # (named .a
     except OSError: pass
 ASSETS = HERE / 'assets' if (HERE / 'assets').is_dir() else HERE     # assets/ = the tool's own files (engine, recipe, texts)
 UNIT = HERE / 'my_unit' if ASSETS != HERE else HERE        # my_unit/ = everything about your unit (delete it before sharing)
+REAL_UNIT, TDIR = UNIT, UNIT / 'tester'                    # tester mode: the simulated user's folder is my_unit/tester/my_unit/
+if TESTER: UNIT = TDIR / 'my_unit'
 sys.path.insert(0, str(ASSETS))
 sys.dont_write_bytecode = True                             # no __pycache__ folders in the tool folder
 import om108_patcher as OP                                  # noqa: E402
@@ -62,7 +68,7 @@ def Z(n, lo=1):
     """A size in pixels (padding, box sizes) at the current zoom."""
     return max(lo, round(n * ZOOM))
 
-GUI_VERSION = '0.42'
+GUI_VERSION = '0.43'
 SETTINGS_ACTIVE = True       # the firmware reads the settings block (Install uses the window's choices)
 SETTINGS = UNIT / 'settings.ini'
 BACKUPS = UNIT / 'backups'
@@ -73,6 +79,7 @@ def stock_file():
 SAFE = UNIT / 'work' / 'stock_safety_copy' / 'om108_backup.bin'     # a second copy of the stock firmware file (_guard_stock)
 DUMPS = UNIT / 'dumps'
 TITLE = 'Suzuki Omnichord OM-108 Custom Firmware Tool'
+if TESTER: import om108_tester as TM                       # noqa: E402
 
 # ------------------------------------------------------------------------------------------------- the choices (= the Suggested Default: mod 2.86 behaviour)
 PRESETS = ['P1', 'P2', 'P3', 'P4', 'P5']
@@ -307,11 +314,16 @@ def migrate_layout():
 
 class App(tk.Tk):
     def __init__(self):
-        migrate_layout()
+        if not TESTER: migrate_layout()
         super().__init__()
-        self.title(TITLE); self.configure(bg=BG)
+        self.title(TITLE + ('   [TESTER MODE: simulated unit]' if TESTER else '')); self.configure(bg=BG)
         self.q = queue.Queue(); self.busy = False; self.gated = []; self.always = []; self.vars = {}; self._save_job = None
-        load_tips(); load_popups(); self._style(); self._build()
+        load_tips(); load_popups(); self._style()
+        if TESTER:                                       # choose the simulated unit before anything looks at my_unit/
+            self.withdraw()
+            if not TM.choose(self, TDIR, REAL_UNIT, self._ini_or_defaults()) and not TM.current(TDIR): self.destroy(); raise SystemExit(0)
+            self.deiconify()
+        self._build()
         d = defaults()
         if SETTINGS.exists():
             try: d = ini_read(SETTINGS.read_text(encoding='utf-8'), self.say); self._win_saved = ini_window(SETTINGS.read_text(encoding='utf-8'))
@@ -388,6 +400,12 @@ class App(tk.Tk):
             d = -1 if e.num == 4 else 1 if e.num == 5 else (-e.delta if sys.platform == 'darwin' else -e.delta // 120)
             cv.yview_scroll(int(d), 'units')
         for ev in ('<MouseWheel>', '<Button-4>', '<Button-5>'): self.bind_all(ev, wheel)
+        if TESTER:
+            ban = tk.Frame(page, bg='#ffb347', padx=8, pady=4); ban.pack(fill='x', pady=(0, 8))
+            self.tester_lbl = tk.Label(ban, bg='#ffb347', fg=INK, justify='left', anchor='w', font=('TkDefaultFont', F(10), 'bold'))
+            self.tester_lbl.pack(side='left', fill='x', expand=True)
+            b = ttk.Button(ban, text='Change simulated unit...', command=self.do_tester); b.pack(side='right'); self.always.append(b)
+            self._tester_text()
         head = ttk.Frame(page); head.pack(fill='x'); self.head = head
         self.title_lbl = tip(ttk.Label(head, text=TITLE, style='Title.TLabel'), 'header'); self.title_lbl.pack(side='left')
         ttk.Label(head, text='by JohnnyW', style='By.TLabel').pack(side='left', padx=10, pady=(6, 0))
@@ -790,6 +808,7 @@ class App(tk.Tk):
     def run_job(self, label, args, after=None):
         if self.busy: return
         self.busy = True; self._refresh(); self.prog.stop(); self.prog.configure(mode='indeterminate'); self.prog['value'] = 0; self._pct(''); self.prog.configure(style='Horizontal.TProgressbar'); self.prog.start(12); self.say(f'--- {label}')
+        if TESTER: args = list(args) + ['--tester', str(TDIR)]
         def work():
             # Every job runs in its own helper process (the same Python, om108_patcher.py): NXP's USB library must not be
             # used twice from one program on macOS, and a crash in it can then never close this window.
@@ -866,6 +885,34 @@ class App(tk.Tk):
             ver = f"_v{v['version']}" if v.get('version') else ''          # a factory firmware: its version (v29 / v30)
             DUMPS.mkdir(exist_ok=True); dst = DUMPS / time.strftime(f'om108_dump{ver}_%Y-%m-%d_%H%M%S.bin')
             shutil.copyfile(v['file'], dst); self.say(f'Saved: {DUMPS.name}/{dst.name}')
+
+    # -------------------------------------------------------------------------- tester mode
+    def _ini_or_defaults(self):
+        """The choices for a simulated unit with this tool's custom firmware: the simulated user's settings.ini, else the
+        real one, else the Suggested Default."""
+        for p in (SETTINGS, REAL_UNIT / 'settings.ini'):
+            try:
+                if p.exists(): return OP.norm_settings(ini_read(p.read_text(encoding='utf-8'), lambda s: None))
+            except Exception: pass
+        return OP.norm_settings(defaults())
+
+    def _tester_text(self):
+        c = TM.current(TDIR) or {}
+        self.tester_lbl.configure(text=f"TESTER MODE: nothing is sent to USB. Simulated unit: {c.get('unit', '?')}.\n"
+                                       f"Simulated tool folder (my_unit/tester/my_unit): {c.get('folder', '?')}.")
+
+    def do_tester(self):
+        if self.busy: return
+        try: self._save()
+        except Exception: pass
+        if not TM.choose(self, TDIR, REAL_UNIT, OP.norm_settings(self.to_dict())): return
+        d = defaults()
+        if SETTINGS.exists():
+            try: d = ini_read(SETTINGS.read_text(encoding='utf-8'), self.say)
+            except Exception: pass
+        self.load_dict(d); self._save(); self._tester_text()
+        self.say(f'--- [TESTER MODE] new simulated unit: {TM.current(TDIR)["unit"]}; {TM.current(TDIR)["folder"]}')
+        self._seen = None; self._guard_stock(repeat=False); self.after(300, self._startup)
 
     def do_defaults(self):
         self.load_dict(defaults()); self.say('All settings set to the Suggested Default.')

@@ -34,39 +34,39 @@ typedef unsigned char u8; typedef signed char s8; typedef unsigned int u32;
 #define RS8(a) (*(volatile s8  *)(a))
 #define R32(a) (*(volatile u32 *)(a))
 /* firmware entry points (Thumb) */
-#define F_E7DC   ((void(*)(u32))0x6000E7DD)        /* select voice slot */
-#define F_C274   ((void(*)(void))0x6000C275)       /* panel/key handler */
-#define F_LEDSET ((void(*)(int,int))0x60003CE5)    /* LED flag + output */
-#define F_TUNE   ((void(*)(int))0x600186E1)        /* engine master tune (thunk to 0x202000C0) */
-#define F_TUNE_A ((void(*)(volatile s8*))0x600085B1) /* tune tables, as stock P+arrow handler */
-#define F_TUNE_B ((void(*)(volatile s8*))0x6000873D)
-#define KEYBITS  0x600332C0u                         /* key-matrix column bit table (+col*16+8) */
-#define F_ERASE  ((int(*)(u32,u32))0x60018721)     /* ITCM sector erase */
-#define F_PROG   ((int(*)(u32,u32,void*))0x600186E9)/* ITCM page program */
-#define F_B2C4   ((u32(*)(void))0x6000B2C5)          /* stock power-on factory-reset check (yellow VOICE + yellow PATTERN) */
-#define DE6B     0x2000DE6Bu                         /* set by it when a factory reset was requested */
-#define DE87     0x2000DE87u                         /* stock: keys 0 + 11 held at power-on (no LED animation) */
+#define F_E7DC   ((void(*)(u32))(FL(6000E7DC) | 1u))        /* select voice slot */
+#define F_C274   ((void(*)(void))(FL(6000C274) | 1u))       /* panel/key handler */
+#define F_LEDSET ((void(*)(int,int))(FL(60003CE4) | 1u))    /* LED flag + output */
+#define F_TUNE   ((void(*)(int))(FL(600186E0) | 1u))        /* engine master tune (thunk to 0x202000C0) */
+#define F_TUNE_A ((void(*)(volatile s8*))(FL(600085B0) | 1u)) /* tune tables, as stock P+arrow handler */
+#define F_TUNE_B ((void(*)(volatile s8*))(FL(6000873C) | 1u))
+#define KEYBITS  FL(600332C0)                         /* key-matrix column bit table (+col*16+8) */
+#define F_ERASE  ((int(*)(u32,u32))(FL(60018720) | 1u))     /* ITCM sector erase */
+#define F_PROG   ((int(*)(u32,u32,void*))(FL(600186E8) | 1u))/* ITCM page program */
+#define F_B2C4   ((u32(*)(void))(FL(6000B2C4) | 1u))          /* stock power-on factory-reset check (yellow VOICE + yellow PATTERN) */
+#define DE6B     RA(2000DE6B)                         /* set by it when a factory reset was requested */
+#define DE87     RA(2000DE87)                         /* stock: keys 0 + 11 held at power-on (no LED animation) */
 #define FLEXSPI  0x402A8000u
-#define F_DCINV  ((void(*)(u32,int))0x60012C9D)       /* stock D-cache invalidate by address (used by the stock settings writer) */
+#define F_DCINV  ((void(*)(u32,int))(FL(60012C9C) | 1u))       /* stock D-cache invalidate by address (used by the stock settings writer) */
 /* RAM */
-#define LED(i)   R8(0x200000F0u+(i))
-#define F_3A5C   ((void(*)(u32))0x60003A5D)          /* stock: redraw the voice LED row (arg = power LED) */
-#define F_F518   ((void(*)(u32, u32))0x6000F519)     /* stock: LED port write (port, ~bits) */
-#define LEDSH    0x20002A54u                          /* stock shadow of LED ports 4 / 5 / 6 */
-#define KEY(k)   (0x20006B90u+7u*(k))
-#define VT       0x200003ACu              /* voice->layer table */
-#define DE88 0x2000DE88u  /* voice bank */
-#define DE89 0x2000DE89u  /* voice = bank*5+slot */
-#define DE84 0x2000DE84u  /* pattern bank */
-#define DE82 0x2000DE82u  /* pattern = bank*5+idx */
-#define DE72 0x2000DE72u  /* master tune -6..6 */
-#define DE79 0x2000DE79u  /* transpose -6..6 */
-#define OCT  0x200009DCu  /* octave 0..2 */
-#define OCT2 0x200009DDu
-#define KEYS_EN 0x2000DEA2u
-#define DE80 0x2000DE80u  /* keyboard mode */
-#define PAGEBUF 0x20002AD4u               /* 256 B, used by stock code only at power-on setup */
-#define ST      0x20002C54u               /* restore state (inside 2nd stock buffer, upper half) */
+#define LED(i)   R8(RA(200000F0)+(i))
+#define F_3A5C   ((void(*)(u32))(FL(60003A5C) | 1u))          /* stock: redraw the voice LED row (arg = power LED) */
+#define F_F518   ((void(*)(u32, u32))(FL(6000F518) | 1u))     /* stock: LED port write (port, ~bits) */
+#define LEDSH    RA(20002A54)                          /* stock shadow of LED ports 4 / 5 / 6 */
+#define KEY(k)   (RA(20006B90)+7u*(k))
+#define VT       RA(200003AC)              /* voice->layer table */
+#define DE88 RA(2000DE88)  /* voice bank */
+#define DE89 RA(2000DE89)  /* voice = bank*5+slot */
+#define DE84 RA(2000DE84)  /* pattern bank */
+#define DE82 RA(2000DE82)  /* pattern = bank*5+idx */
+#define DE72 RA(2000DE72)  /* master tune -6..6 */
+#define DE79 RA(2000DE79)  /* transpose -6..6 */
+#define OCT  RA(200009DC)  /* octave 0..2 */
+#define OCT2 RA(200009DD)
+#define KEYS_EN RA(2000DEA2)
+#define DE80 RA(2000DE80)  /* keyboard mode */
+#define PAGEBUF RA(20002AD4)               /* 256 B, used by stock code only at power-on setup */
+#define ST      RA(20002C54)               /* restore state (inside 2nd stock buffer, upper half) */
 #define STATE_SECTOR_OFF 0x00FFE000u
 #define STATE_SECTOR     0x60FFE000u
 /* ---------------- settings block (the Custom Firmware Tool's choices) ----------------
@@ -86,7 +86,7 @@ typedef unsigned char u8; typedef signed char s8; typedef unsigned int u32;
 static int cfg_ok(void) { return R32(CFG) == CFG_MAGIC && R32(CFG + 60u) == ~CFG_MAGIC && R8(CFG + 4u) == 1u; }
 u32 cf(u32 bit) { return (cfg_ok() ? R8(CFG + 5u) : CF_DEFAULT) & bit; }   /* (global: the tests call it) */
 u32 clk_ok(void) {                /* clk_gate: send MIDI clock / Start / Stop in the user's preset (an invalid one = P1, as mod 1) */
-    u32 p = R8(0x20000280u); if (p < 1u || p > 5u) p = 1u;
+    u32 p = R8(RA(20000280)); if (p < 1u || p > 5u) p = 1u;
     return ((cfg_ok() ? R8(CFG + 6u) : CLK_DEFAULT) >> (p - 1u)) & 1u;
 }
 /* ---------------- alt sub per voice ----------------
@@ -136,7 +136,7 @@ static u32 jazz(void) { return R8(JAZZ) == JAZZ_ON; }
 /* Runtime state of 27 mode, the alternate bass, jazz, the analog vibrato and the Gb 7th + voice button mode pick (control
    task + rhythm interrupt), in the free bytes 0x20002C84-0x20002CD3 of the stock page buffer (used by stock code only at
    power-on / power-off; magic-checked, zeroed when the magic is wrong) */
-#define R7B     0x20002C84u
+#define R7B     RA(20002C84)
 #define R7MAGIC 0x52323731u
 typedef struct {
     u32 magic;
@@ -161,7 +161,7 @@ typedef struct {
     u8 mpre, mfrom, mflag, moff;   /* 2.79 Manual/Auto: its state just before the stock took this press of the button (MA_*);
                                       the state before the third one was turned on; MF_* flags; KEYBOARD release counter */
 } r27_t;
-_Static_assert(sizeof(r27_t) <= 0x20002CD4u - R7B, "r27_t too big");
+_Static_assert(sizeof(r27_t) <= RA(20002CD4) - R7B, "r27_t too big");
 _Static_assert(sizeof(r27_t) == 72 && __builtin_offsetof(r27_t, ktr) == 62, "r27_t: as 2.86 (test_led L2)");
 _Static_assert(__builtin_offsetof(r27_t, c) == 26 && __builtin_offsetof(r27_t, rst) == 35 && __builtin_offsetof(r27_t, vsel) == 54
                && __builtin_offsetof(r27_t, von) == 61 && __builtin_offsetof(r27_t, vc) == 64, "test offsets");
@@ -240,7 +240,7 @@ void voice_other(u32 idx) {             /* bank-button path: subs keep their per
     F_E7DC(idx);
 }
 
-#define LEDSAVE 0x20000110u      /* stock LED flags shown when the startup LED animation / setting blink ends (0x16 bytes) */
+#define LEDSAVE RA(20000110)      /* stock LED flags shown when the startup LED animation / setting blink ends (0x16 bytes) */
 /* ---------------- state record ---------------- */
 /* rec: [0]=0xA5 [1]=ver (1 = mod 2.1-2.14, 2 = mod 2.15) [2]=vbank [3]=voice [4]=pbank [5]=pattern(FF=none)
         [6]=hold LED10 [7]=Manual LED11 (2.79: 2 / 3 = the third Manual/Auto state from Auto / Manual) [8]=LED13 [9]=tune [10]=transpose [11]=octave
@@ -394,7 +394,7 @@ static void boot_mode(void) {
 u32 boot_b2c4(void) {
     u32 r = F_B2C4();
     if (R8(DE6B)) {
-        R8(0x20000285u) = 1u;            /* factory default battery type = Ni-MH (stock writes 0 = alkaline); saved by the stock write that follows */
+        R8(RA(20000285)) = 1u;            /* factory default battery type = Ni-MH (stock writes 0 = alkaline); saved by the stock write that follows */
         u32 pm; __asm volatile ("mrs %0, primask\n cpsid i" : "=r"(pm) :: "memory");
         F_ERASE(FLEXSPI, STATE_SECTOR_OFF);
         F_DCINV(STATE_SECTOR, 0x1000);   /* no stale cached copy of the old records */
@@ -434,7 +434,7 @@ void latch_off(void) {                   /* replaces the two power-latch-off sto
 #define GAP_TICKS   45    /* stock release debounce is 30 scans */
 #define ARM_SCANS   32    /* restore_early: scans for the stock release debounce (30) */
 #define RESTORE_MAX 10000u /* ticks: a power-on button held longer than this leaves its setting as it is */
-#define LEDQ_W   0x2000AF8Cu   /* stock LED-write queue: write index (ring 0x2000AB8C, 512 entries, one sent per ms) */
+#define LEDQ_W   RA(2000AF8C)   /* stock LED-write queue: write index (ring 0x2000AB8C, 512 entries, one sent per ms) */
 /* Called from the key-matrix scan (row_read): extra column bits that read as pressed for this row. */
 u32 inj_bits(u32 row) {
     volatile u8 *s = (volatile u8 *)ST;
@@ -586,20 +586,20 @@ static void restore_tick(void) {       /* control task, every tick until done */
    Pitch = engine global sample tune (s16 cents, 0x20007606; re-read by 0x20200ED0 for every sounding melodic channel on
    every audio block). Offset = base + LFO; the base is re-taken whenever someone else changed the tune (P + arrows,
    panel restore); when everything is idle the exact base is written back and the tune is left alone. */
-#define TUNE16  (*(volatile short *)0x20007606u)
-#define TICKS   R32(0x2000DB84u)
-#define SIG14   RS8(0x2000AB86u)
-#define DE2C    0x2000DE2Cu      /* stock power-on blink running */
-#define DE2F    0x2000DE2Fu      /* stock blink phase */
-#define DE66    0x2000DE66u      /* stock: rhythm-tone setup key used (save + blink) */
-#define SETBUF  0x20000280u      /* stock settings buffer; byte 4 = rhythm tone 0 Normal (OM-108) / 1 Classic (OM-84) */
-#define F_ALLOFF  ((void(*)(void))0x600186C9)            /* all strum channels off (veneer -> 0x202000D8) */
-#define F_NOTEON  ((void(*)(u32,u32))0x600186D9)         /* plate note-on (veneer -> 0x20200114) */
-#define F_LEDDISP ((void(*)(volatile s8*))0x60003AD1)    /* stock master-tune LED display (pattern row), value -6..+6 */
-#define F_LEDDISPT ((void(*)(volatile s8*))0x60003985)   /* stock transpose LED display (voice row), value -6..+6 */
-#define F_LEDREST ((void(*)(void))0x60003C15)            /* stock: redraw LEDs from their flags */
-#define F_MEMCPY  ((void(*)(void*,const void*,u32))0x600181D7)
-#define F_E850    ((void(*)(u32))0x6000E851)              /* stock: layer release-mode byte for all voices (P key uses 1) */
+#define TUNE16  (*(volatile short *)RA(20007606))
+#define TICKS   R32(RA(2000DB84))
+#define SIG14   RS8(RA(2000AB86))
+#define DE2C    RA(2000DE2C)      /* stock power-on blink running */
+#define DE2F    RA(2000DE2F)      /* stock blink phase */
+#define DE66    RA(2000DE66)      /* stock: rhythm-tone setup key used (save + blink) */
+#define SETBUF  RA(20000280)      /* stock settings buffer; byte 4 = rhythm tone 0 Normal (OM-108) / 1 Classic (OM-84) */
+#define F_ALLOFF  ((void(*)(void))(FL(600186C8) | 1u))            /* all strum channels off (veneer -> 0x202000D8) */
+#define F_NOTEON  ((void(*)(u32,u32))(FL(600186D8) | 1u))         /* plate note-on (veneer -> 0x20200114) */
+#define F_LEDDISP ((void(*)(volatile s8*))(FL(60003AD0) | 1u))    /* stock master-tune LED display (pattern row), value -6..+6 */
+#define F_LEDDISPT ((void(*)(volatile s8*))(FL(60003984) | 1u))   /* stock transpose LED display (voice row), value -6..+6 */
+#define F_LEDREST ((void(*)(void))(FL(60003C14) | 1u))            /* stock: redraw LEDs from their flags */
+#define F_MEMCPY  ((void(*)(void*,const void*,u32))(FL(600181D6) | 1u))
+#define F_E850    ((void(*)(u32))(FL(6000E850) | 1u))              /* stock: layer release-mode byte for all voices (P key uses 1) */
 #define DEPTH_STEPS 13
 /* 2.48: the user's table (steps 0-12; the menu shows step 0 as -6). Peak cents at a full touch / full rock. 1200 cents = the
    largest the maths allows: w * dc / 32 * env stays below 2^31. Analog voices (Omni 1/2) clamp at about +-400 c (ratio_q30). */
@@ -662,20 +662,20 @@ static const u8 TREM_PCT[13] = { 10, 15, 20, 25, 30, 35, 40, 50, 60, 70, 80, 90,
    ended (not at its start, so it never delays a strum). Mod 1 drops CCs, so these few go to the stock queue directly. */
 #define PB_MS     10
 #define RPN_IDLE  1000
-#define FXB       0x20002BDCu      /* fx_t: free since 2.38 (32 B) */
+#define FXB       RA(20002BDC)      /* fx_t: free since 2.38 (32 B) */
 #define FXMAGIC   0x46583532u
 typedef struct { u32 magic; volatile u32 gain, gmix; unsigned short pb_last, pb_ms, idle; u8 rpn, r; } fx_t;
 /* gain (Q15, control task) -> gmix (what the mixer applied last, mixer only); rpn: 0 sent, 1 send now, 2 send after idle */
-_Static_assert(sizeof(fx_t) <= 0x20002BF0u - FXB, "fx_t overlaps mt_t (0x20002BF0)");
-#define MIDIQ     0x2000681Cu      /* stock MIDI queue of the strum / keyboard notes (all message types forwarded) */
+_Static_assert(sizeof(fx_t) <= RA(20002BF0) - FXB, "fx_t overlaps mt_t (0x20002BF0)");
+#define MIDIQ     RA(2000681C)      /* stock MIDI queue of the strum / keyboard notes (all message types forwarded) */
 #define F_MHOOK   ((u32(*)(u32, void*))0x60039001)  /* mod 1: route by preset, drop CCs, then post */
-#define F_MPOST   ((u32(*)(u32, void*))0x6000DB29)  /* stock queue post (returns 0 if full) */
+#define F_MPOST   ((u32(*)(u32, void*))(FL(6000DB28) | 1u))  /* stock queue post (returns 0 if full) */
 #define ROUTE     0x60039100u                         /* mod 1 route[preset-1][internal ch], 0xFF = not sent */
 typedef struct { u8 type, ch; unsigned short len; u8 *data; } mmsg_t;   /* type 4 = CC, 7 = pitch bend (0x60033460) */
-#define VB      0x20002B90u      /* vibrato state (0x44 B max), in the stock page buffer after an_t (power-on/-off only; magic-checked) */
-#define UIB     0x20002C08u
-#define PLB     0x20002C20u      /* ST (restore) starts at 0x20002C54 */
-#define ANB     0x20002B60u      /* analog-vibrato state, in the stock page buffer (used only at power-on/-off) */
+#define VB      RA(20002B90)      /* vibrato state (0x44 B max), in the stock page buffer after an_t (power-on/-off only; magic-checked) */
+#define UIB     RA(20002C08)
+#define PLB     RA(20002C20)      /* ST (restore) starts at 0x20002C54 */
+#define ANB     RA(20002B60)      /* analog-vibrato state, in the stock page buffer (used only at power-on/-off) */
 typedef struct { u32 magic, tick, phase; int x, ls, rate, home; short base, last;
                  unsigned short mgate, off, land, hcnt; s8 de72; u8 active, gate, fast; unsigned short fo;
                  u8 hov, fmin; int lf, pkr, cout; } vib_t;
@@ -690,11 +690,11 @@ _Static_assert(__builtin_offsetof(vib_t, phase) == 8 && __builtin_offsetof(vib_t
                "test offsets");
 typedef struct { u32 magic; u8 gbm, menu, ev, kst; u8 kon[2], koff[2]; u8 kmask[2]; s8 disp; u8 pad;
                  unsigned short bootwait, redraw; u32 hid; } ui_t;
-_Static_assert(sizeof(ui_t) <= 0x20002C20u - 0x20002C08u, "ui_t overlaps the prompt player");
+_Static_assert(sizeof(ui_t) <= RA(20002C20) - RA(20002C08), "ui_t overlaps the prompt player");
 typedef struct { u32 magic, req, ack, pos, len; const u8 *p; u8 qa, qb, stage, k; unsigned short gap; u8 nx, r; } pl_t;
 /* req / qa / qb: written only by the control task (prompt_req); everything else only by the mixer (after init). stage 0
    idle, 1 playing a clip, 2 the gap before the second word. */
-_Static_assert(__builtin_offsetof(pl_t, qa) == 24 && __builtin_offsetof(pl_t, stage) == 26 && sizeof(pl_t) <= 0x20002C50u - 0x20002C20u,
+_Static_assert(__builtin_offsetof(pl_t, qa) == 24 && __builtin_offsetof(pl_t, stage) == 26 && sizeof(pl_t) <= RA(20002C50) - RA(20002C20),
                "test offsets / pl_t too big");
 typedef struct { u32 magic; unsigned short b1[4], b2[4], w1[4], w2[4]; u8 err[4]; u8 mod, pad[3]; volatile u8 wr[4]; } an_t;   /* wr: set by pwm_hook when the stock code programs a channel */
 #define VMAGIC 0x56494246u
@@ -1229,25 +1229,25 @@ static void kb_blink_tick(void) {
 #define MF_GO3  0x10u    /* 2.81: switching to the third state (ma_hold_on: no held MIDI bass note) */
 #define GPIO2_DR_SET 0x401BC084u
 #define GPIO2_DR_CLR 0x401BC088u
-#define DE3B 0x2000DE3Bu
-#define DE38 0x2000DE38u          /* stock: bass gate open */
-#define DE64 0x2000DE64u
-#define DE58 0x2000DE58u          /* stock: the held Manual chord's MIDI notes are on */
-#define MA_KB 0x2000681Cu        /* the stock Manual/Auto branch's arguments (keyboard / strum note queue and its state) */
-#define MA_KS 0x200068CCu
-#define F_8FB0 ((void(*)(u32, u32))0x60008FB1)                  /* stock: auto bass note off */
-#define F_8B0C ((void(*)(u32, u32, u32, u32, u32))0x60008B0D)   /* stock: start the held Manual chord (Manual only) */
-#define F_8D38 ((void(*)(u32, u32))0x60008D39)                  /* stock: held Manual chord off */
-#define F_96A0 ((u32(*)(u32, u32, u32, u32, u32))0x600096A1)    /* stock: MIDI note-on (internal ch, note, velocity, queue, state) */
-#define F_96D4 ((u32(*)(u32, u32, u32, u32))0x600096D5)         /* stock: MIDI note-off (internal ch, note, queue, state) */
-#define F_D8F8 ((u32(*)(void))0x6000D8F9)                       /* stock: 4 = no MIDI notes for the chord / bass */
-#define HOLDB  0x20002ACBu       /* stock: the held Manual chord's MIDI bass note (AC8 + 3; 0 = none, the stock skips it then) */
+#define DE3B RA(2000DE3B)
+#define DE38 RA(2000DE38)          /* stock: bass gate open */
+#define DE64 RA(2000DE64)
+#define DE58 RA(2000DE58)          /* stock: the held Manual chord's MIDI notes are on */
+#define MA_KB RA(2000681C)        /* the stock Manual/Auto branch's arguments (keyboard / strum note queue and its state) */
+#define MA_KS RA(200068CC)
+#define F_8FB0 ((void(*)(u32, u32))(FL(60008FB0) | 1u))                  /* stock: auto bass note off */
+#define F_8B0C ((void(*)(u32, u32, u32, u32, u32))(FL(60008B0C) | 1u))   /* stock: start the held Manual chord (Manual only) */
+#define F_8D38 ((void(*)(u32, u32))(FL(60008D38) | 1u))                  /* stock: held Manual chord off */
+#define F_96A0 ((u32(*)(u32, u32, u32, u32, u32))(FL(600096A0) | 1u))    /* stock: MIDI note-on (internal ch, note, velocity, queue, state) */
+#define F_96D4 ((u32(*)(u32, u32, u32, u32))(FL(600096D4) | 1u))         /* stock: MIDI note-off (internal ch, note, queue, state) */
+#define F_D8F8 ((u32(*)(void))(FL(6000D8F8) | 1u))                       /* stock: 4 = no MIDI notes for the chord / bass */
+#define HOLDB  RA(20002ACB)       /* stock: the held Manual chord's MIDI bass note (AC8 + 3; 0 = none, the stock skips it then) */
 /* 2.81: MIDI out in the third state = what it sounds like: the held Manual chord (stock, 0x200009DA = 0) and the auto bass
    line. The stock auto bass MIDI (0x60008E74 rest, 0x60008F20 / 0x60008F70 / 0x60008FE8 notes, 0x6000906C keyboard-mode stop)
    asks 0x6000D8D0 (= 0x200009DA, Auto) first: those five calls go to ma_bass_auto. The held chord's bass note (internal ch 2,
    AC8 + 3, from 0x60008B0C) is not sent in the third state (ma_hold_on, the note set to 0; the stock note-offs skip a 0, and
    0x60008B0C's own one goes through ma_hold_off). The held chord's 3 notes are the stock ones. */
-u32 ma_bass_auto(void) { return R8(0x200009DAu) || ma_state() == MA_THIRD; }
+u32 ma_bass_auto(void) { return R8(RA(200009DA)) || ma_state() == MA_THIRD; }
 u32 ma_hold_on(u32 ch, u32 note, u32 vel, u32 q, u32 st) {      /* replaces bl 0x600096A0 (ch 2, the bass) at 0x60008BAE */
     const r27_t *S = (const r27_t *)R7B;
     if (ma_state() == MA_THIRD || (S->magic == R7MAGIC && (S->mflag & MF_GO3))) { R8(HOLDB) = 0; return 1u; }
@@ -1266,22 +1266,22 @@ static void ma_hold_drop(void) {         /* the held chord's MIDI bass note off 
    note-ons (0x60008B0C, the same notes) went over them, and the rhythm's own clean-up a moment later (0x6000928C, DE3B)
    stopped them - the held Manual chord silent on MIDI until the next chord press (found by the 2026-10-16 soak test).
    ma_chord_off (entry +0x60, the stock branch's bl at 0x6000CFCC) is 0x60008E2C without the Auto test. */
-#define DE55 0x2000DE55u          /* stock: the rhythm's chord notes are on (MIDI) */
+#define DE55 RA(2000DE55)          /* stock: the rhythm's chord notes are on (MIDI) */
 void ma_chord_off(u32 q, u32 st) {
     if (!R8(DE55)) return;
-    for (u32 i = 0; i < 3u; i++) if (F_D8F8() != 4u) F_96D4(1u, R8(0x20002AC8u + i), q, st);
+    for (u32 i = 0; i < 3u; i++) if (F_D8F8() != 4u) F_96D4(1u, R8(RA(20002AC8) + i), q, st);
     R8(DE55) = 0;
 }
 static void ma_manual(void) {            /* the stock button's Manual branch (0x6000CF9C), as it is (2.84: as patched) */
     F_LEDSET(0x11, 1); F_LEDSET(0x12, 0);
-    R32(GPIO2_DR_CLR) = 0x400000u; R8(0x200009DAu) = 0;
+    R32(GPIO2_DR_CLR) = 0x400000u; R8(RA(200009DA)) = 0;
     F_8FB0(MA_KB, MA_KS); ma_chord_off(MA_KB, MA_KS);
     R8(DE3B) = 1u;
-    if (R8(DE64)) F_8B0C(R8(0x20000378u), R8(0x20000379u), R8(0x2000037Au), MA_KB, MA_KS);
+    if (R8(DE64)) F_8B0C(R8(RA(20000378)), R8(RA(20000379)), R8(RA(2000037A)), MA_KB, MA_KS);
 }
 static void ma_auto(void) {              /* the stock button's Auto branch (0x6000D2A4), as it is */
     F_LEDSET(0x11, 0); F_LEDSET(0x12, 1);
-    R32(GPIO2_DR_SET) = 0x400000u; R8(0x200009DAu) = 1u;
+    R32(GPIO2_DR_SET) = 0x400000u; R8(RA(200009DA)) = 1u;
     F_8D38(MA_KB, MA_KS);
 }
 static void ma_set(u32 t) {
@@ -1303,7 +1303,7 @@ static void ma_set(u32 t) {
         R32(GPIO2_DR_CLR) = 0x10u; R8(DE38) = 0; R32(GPIO2_DR_CLR) = 0x400000u;
         F_8FB0(MA_KB, MA_KS);            /* 2.81: MIDI: the auto bass note off, and the held chord again with its bass (as the
                                             stock Manual branch does) */
-        if (R8(DE64)) F_8B0C(R8(0x20000378u), R8(0x20000379u), R8(0x2000037Au), MA_KB, MA_KS);
+        if (R8(DE64)) F_8B0C(R8(RA(20000378)), R8(RA(20000379)), R8(RA(2000037A)), MA_KB, MA_KS);
     }
 }
 static u32 ma_keys(u32 bits) {           /* row_filter, row 5, once the panel is live */
@@ -1400,14 +1400,14 @@ u32 row_filter(u32 row, u32 bits) {
    into TRBUF. DE73 is never set: with DE73 = 1 the stock key handler treats keys 4-11 as the P key (reference tone,
    DE7C = 1), which silences keyboard-mode notes until P is pressed (found in review of 2.39). The previous flag values
    are put back when the menu closes (in keyboard mode). */
-#define MTBUF 0x20000108u
-#define TRBUF 0x2000010Cu
-#define DE73 0x2000DE73u
-#define DE78 0x2000DE78u
+#define MTBUF RA(20000108)
+#define TRBUF RA(2000010C)
+#define DE73 RA(2000DE73)
+#define DE78 RA(2000DE78)
 /* Issue #1: 0x6000E850(1) sets every voice's release byte to the cut used for the all-off; the stock always pairs it with
    DE77 = 1, and its control loop puts the release back (0x6000E850(0)) 20 scans later (kept at 1 only in keyboard mode with
    Omni 1). Without DE77 the cut stayed, and keyboard notes ignored Sustain until keyboard mode was left. */
-#define DE77 0x2000DE77u
+#define DE77 RA(2000DE77)
 static void show_menu(ui_t *U) {
     if (U->menu == MENU_SPEED) { U->disp = (s8)spd(); F_LEDDISPT(&U->disp); }   /* voice LED row, as transpose */
     else { U->disp = (s8)((int)depth_idx() - 6); F_LEDDISP(&U->disp);           /* pattern LED row, as master tune */
@@ -1439,10 +1439,10 @@ static void menu_exit(ui_t *U) {
    transpose-display path (DE78 + TRBUF, as the speed menu) so the battery-check refresh keeps it. Ignored while a menu /
    the keyboard effect is up or a keyboard note / drum pad is held; while held, keyboard notes are blocked (drums play)
    and Up / Down never reach the stock octave code (row_filter, as in the menus). */
-#define MTB      0x20002BF0u             /* mt_t: free since 2.38 (after fx_t) */
+#define MTB      RA(20002BF0)             /* mt_t: free since 2.38 (after fx_t) */
 #define MTMAGIC  0x4D543533u
 typedef struct { u32 magic, t0; u8 used, blink, lock, pad, ph, above, pt, slot; } mt_t;   /* above / pt / slot: the P / T stack (#5) */
-_Static_assert(sizeof(mt_t) <= 0x20002C08u - MTB, "mt_t too big");
+_Static_assert(sizeof(mt_t) <= RA(20002C08) - MTB, "mt_t too big");
 #define BLINK_MS  800u                   /* 3 blinks: 6 equal on / off phases */
 static mt_t *mt(void) {
     mt_t *M = (mt_t *)MTB;
@@ -1462,7 +1462,7 @@ static void mode_say(u32 m) {
 static void mode_show(u32 m, int on) {
     R8(DE73) = 0u; R8(DE78) = 1u;
     R8(TRBUF) = on ? (u8)(2u << m) : 0u;                  /* bits 1-5 = the 5 voice LEDs, 6 / 7 = bank LEDs (off) */
-    F_3A5C(R8(0x200000F0u + 1u));                          /* voice row (+ the power LED as it is) */
+    F_3A5C(R8(RA(200000F0) + 1u));                          /* voice row (+ the power LED as it is) */
     u8 pr = LED(0x10) ? 0x80u : 0u;                       /* pattern port: everything off but the Hold LED */
     R8(LEDSH + 1u) = pr; F_F518(5u, (u32)(u8)~pr);
 }
@@ -1482,9 +1482,9 @@ static void mode_end(mt_t *M) {         /* stock display flags back, LEDs redraw
    above = P / T pressed while a menu was up (bit 0 T, bit 1 P); pt = P / T held last tick (the stock's held flags); slot =
    the voice slot the engine played when the menu came on top (put back when T is shown again: the stock P / T state,
    which keeps slot 12 after P, a stock quirk). ---- */
-#define VSLOT 0x20007604u                                /* stock: the voice slot 0x6000E7DC selected */
-#define PT_HELD 0x2000029Cu                              /* stock: key k held = +k*3+2 (T = +2, P = +5) */
-#define F_C1A4 ((void(*)(u32))0x6000C1A5)
+#define VSLOT RA(20007604)                                /* stock: the voice slot 0x6000E7DC selected */
+#define PT_HELD RA(2000029C)                              /* stock: key k held = +k*3+2 (T = +2, P = +5) */
+#define F_C1A4 ((void(*)(u32))(FL(6000C1A4) | 1u))
 static u32 pt_held(void) { return (R8(PT_HELD + 2u) ? 1u : 0u) | (R8(PT_HELD + 5u) ? 2u : 0u); }
 static int menu_sus(void) {
     const ui_t *U = (const ui_t *)UIB; const mt_t *M = (const mt_t *)MTB;
@@ -1614,19 +1614,19 @@ static void ui_tick(void) {
    not take it gets at most MAX_TRIES consecutive attempts per power-on, so it can never cause repeated re-calibration.
    The gain really in the chip is kept for vib_tick, which scales the reading to the 16x range whatever it is.
    Write = tx {reg, value}; read = tx {reg|0x80, 0}, second of two reads kept (as the stock code). */
-#define F_SPIX  ((int(*)(u32,u32))0x60012889)      /* stock LPSPI blocking transfer (handle, xfer) */
-#define F_DLY   ((void(*)(u32))0x60009261)          /* stock busy-wait loop used by the chip set-up */
-#define SPIH    0x2000AFA8u
-#define SPIXF   0x2000AF98u                         /* {tx, rx, len, flags} */
-#define SPITX   0x2000AF94u
-#define SPIRX   0x2000AF90u
-#define PALM    0x200009E0u                         /* stock: value last written to reg 0x33 by the palm check (1 / 0xFE) */
-#define F_F90C  ((void(*)(void*))0x6000F90D)
-#define CSB     0x20002BD4u                         /* chip state, touch task only (stock page buffer, power-on/off only) */
+#define F_SPIX  ((int(*)(u32,u32))(FL(60012888) | 1u))      /* stock LPSPI blocking transfer (handle, xfer) */
+#define F_DLY   ((void(*)(u32))(FL(60009260) | 1u))          /* stock busy-wait loop used by the chip set-up */
+#define SPIH    RA(2000AFA8)
+#define SPIXF   RA(2000AF98)                         /* {tx, rx, len, flags} */
+#define SPITX   RA(2000AF94)
+#define SPIRX   RA(2000AF90)
+#define PALM    RA(200009E0)                         /* stock: value last written to reg 0x33 by the palm check (1 / 0xFE) */
+#define F_F90C  ((void(*)(void*))(FL(6000F90C) | 1u))
+#define CSB     RA(20002BD4)                         /* chip state, touch task only (stock page buffer, power-on/off only) */
 #define CMAGIC  0x43483336u
 typedef struct { u32 magic; u8 g09, tries, miss; u8 cnt; } cs_t;
-#define DEA0 0x2000DEA0u                            /* stock touch masks (Cin0-7, Cin8-15), read this cycle */
-#define DEA1 0x2000DEA1u
+#define DEA0 RA(2000DEA0)                            /* stock touch masks (Cin0-7, Cin8-15), read this cycle */
+#define DEA1 RA(2000DEA1)
 #define BOOST_G   0xFFu                             /* reg 0x09: Cin14 (and unused Cin15) 2nd gain code 15 = 16x */
 #define BOOST_T   40u                               /* reg 0x18: Cin14 touch threshold */
 #define CHK_CYC   250u                              /* read 0x09 back about once a second (chip ~250 measurements/s) */
@@ -1729,9 +1729,9 @@ static const u8 P27[6][32] = {
 /* 2.63: 27-mode bass = the OM-84 rock programming: the gate opens on each new note and the stock Classic-tone tick closes it
    after 50 ms; the OM-108's analog bass then dies away on its own. 2.64: with a pluck style (bsty) the gate is held instead
    (27 mode: BASS_MAX or to the next note; 84 mode: the pattern's note length, as the 108 mode) and the pluck shapes it. */
-#define DE34 0x2000DE34u         /* stock: Classic-tone bass gate tick count (the tick cuts the bass gate at 0xFA = 50 ms; above, never) */
-#define DE33 0x2000DE33u         /* stock: chord gate tick count (the tick cuts the chord gate at 0x46 = 14 ms; above 0x46 it never does) */
-#define STEPLEFT 0x20002AA0u     /* stock: rhythm ticks left before the next stock step (u32) */
+#define DE34 RA(2000DE34)         /* stock: Classic-tone bass gate tick count (the tick cuts the bass gate at 0xFA = 50 ms; above, never) */
+#define DE33 RA(2000DE33)         /* stock: chord gate tick count (the tick cuts the chord gate at 0x46 = 14 ms; above 0x46 it never does) */
+#define STEPLEFT RA(20002AA0)     /* stock: rhythm ticks left before the next stock step (u32) */
 /* 2.64: the pluck bass (2.62's idea, reworked against the thump). The bass voice is a square wave from QTimer1 channel 3 (stock
    0x60008E74: SetupPwm, 50 % duty) behind an on/off gate (GPIO2 bit 4); the firmware has no level control. A narrower
    pulse has a weaker fundamental (sin(pi d)), so the duty d falls during each note - but d is also the wave's average, and
@@ -1741,7 +1741,7 @@ static const u8 P27[6][32] = {
    as slow while closed), so it never steps. A new pitch (stock SetupPwm = 50 %) gets our duty back at once. Period (pitch)
    never changed. Runs every control tick (pluck_tick) in any mode, only with bsty() != 0. */
 #define QT1C3_LD1 0x401DC070u     /* QTimer1 channel 3 CMPLD1 (low time - 1), CMPLD2 (high time - 1) at +2 */
-#define BVAL 0x200009D5u          /* stock: the bass value now playing */
+#define BVAL RA(200009D5)          /* stock: the bass value now playing */
 typedef struct { unsigned short f, floor, k; } pk_t;
 static const pk_t PK = { 64453u, 1024u, 85u };   /* the alternate bass (2.64 "strong"): exp(-1 / 60 ms), floor 1/64 (-26 dB),
                                                      smoothing 12 ms. (2.64-2.72 soft: { 65033, 5243, 41 }: 130 ms, -12 dB, 25 ms) */
@@ -1760,11 +1760,11 @@ static void bass_duty(u32 q) {             /* set the bass square's high time to
 #define HIT  80                  /* the stock patterns' velocity */
 #define BK_OFF  0u               /* bass value kinds: 127 = off (stock rest), note */
 #define BK_NOTE 2u
-#define DE0E 0x2000DE0Eu         /* stock step 0-383 (u16) */
-#define DE47 0x2000DE47u         /* rhythm running */
-#define DE49 0x2000DE49u         /* chord type 0-8 (bass row = 19 + type) */
-#define F_7574 ((void(*)(u32, const volatile s8 *))0x60007575)        /* stock row player */
-#define F_7B34 ((void(*)(u32, const volatile s8 *, u32))0x60007B35)   /* stock bass player */
+#define DE0E RA(2000DE0E)         /* stock step 0-383 (u16) */
+#define DE47 RA(2000DE47)         /* rhythm running */
+#define DE49 RA(2000DE49)         /* chord type 0-8 (bass row = 19 + type) */
+#define F_7574 ((void(*)(u32, const volatile s8 *))(FL(60007574) | 1u))        /* stock row player */
+#define F_7B34 ((void(*)(u32, const volatile s8 *, u32))(FL(60007B34) | 1u))   /* stock bass player */
 static const u8 THIRD[9] = { 5, 4, 5, 5, 4, 4, 5, 6, 3 };   /* bass values (1 = root) per chord type, from the stock bass rows */
 static const u8 FIFTH[9] = { 8, 8, 8, 8, 8, 7, 9, 8, 8 };
 static u32 frame27(u32 m, u32 c) {         /* the chip's outputs at count c with rhythms m held */
@@ -1831,7 +1831,8 @@ void r27_bass(u32 root, const volatile s8 *p, u32 de42) {   /* replaces bl 0x600
     if (st && R8(DE38)) R8(DE34) = 0xFBu;
     if (pk) {
         u32 g1 = R8(DE38), v1 = R8(BVAL);
-        if (g1 && (!g0 || (v1 != v0 && (s8)v1 < 0x7C))) S->pnew = 1u;   /* gate opened, or a new pitch under it */
+        if (g1 && (!g0 || (v1 != v0 && (s8)v1 < BASS_CODE_LO))) S->pnew = 1u;   /* gate opened, or a new pitch under it (a code
+                                                                              below the bass player's rest codes: lib/stock.py) */
         bass_duty((u32)S->py2);              /* a new pitch reset the timer to 50 %: our duty back at once */
     }
 }
@@ -1880,14 +1881,14 @@ void r27_bass(u32 root, const volatile s8 *p, u32 de42) {   /* replaces bl 0x600
    - 2.86dev9: the combination = m6/9 on every voice (Omni 1 too), m7b5 on the A. piano (to compare); Omni 1 and 2 back to
      dev6 (exact strum, the oscillators stay until the next chord: OM_RETURN 0, jsafe 0).
    Runtime state in the stock page buffer (free at runtime). */
-#define BROB     0x20002B10u              /* bro_t: page buffer (0x20002AD4-0x20002B5F free at runtime; sl_t before it) */
+#define BROB     RA(20002B10)              /* bro_t: page buffer (0x20002AD4-0x20002B5F free at runtime; sl_t before it) */
 #define BROMAGIC 0x42523836u
-#define CLS      0x20000378u              /* stock: the chord's classes (root, 3rd-type, 5th-type), 0-11; oscillator = 54 + class */
-#define PLATES   0x20006AD8u              /* stock plate notes [1..13] (sample note = MIDI - 12) */
-#define PTOUCH   0x20006A65u              /* stock: plate 1..13 touched (debounced) */
-#define AUTOF    0x200009DAu              /* stock: Auto */
-#define DE47B    0x2000DE47u              /* stock: rhythm running */
-#define F_8E74   ((u32(*)(u32, u32, u32))0x60008E75)   /* stock: bass pitch (bass table index = MIDI - 24; >= 100 rest) */
+#define CLS      RA(20000378)              /* stock: the chord's classes (root, 3rd-type, 5th-type), 0-11; oscillator = 54 + class */
+#define PLATES   RA(20006AD8)              /* stock plate notes [1..13] (sample note = MIDI - 12) */
+#define PTOUCH   RA(20006A65)              /* stock: plate 1..13 touched (debounced) */
+#define AUTOF    RA(200009DA)              /* stock: Auto */
+#define DE47B    RA(2000DE47)              /* stock: rhythm running */
+#define F_8E74   ((u32(*)(u32, u32, u32))(FL(60008E74) | 1u))   /* stock: bass pitch (bass table index = MIDI - 24; >= 100 rest) */
 #define BRO_GAP  80u                      /* ms: a touch this soon after the one before is part of the same strum */
 #define BRO_RS   12u                      /* ms: the chord oscillators stopped for a re-strike (Manual) */
 typedef struct {
@@ -1909,7 +1910,7 @@ typedef struct {
     u8 jv[4];                  /* 2.86dev5: the jazz voicing sounding (MIDI, bottom-up) */
     u8 jk, xt, r8, r9;         /* the chord it is for (root | type << 4; 0xFF = none yet); 2.86dev8/10: the extra combination held (XT_*) */
 } bro_t;
-_Static_assert(sizeof(bro_t) <= 0x20002B60u - BROB, "bro_t overlaps an_t");
+_Static_assert(sizeof(bro_t) <= RA(20002B60) - BROB, "bro_t overlaps an_t");
 static const u8 SC_MAJ6[8] = { 0, 2, 4, 5, 7, 8, 9, 11 };   /* C6 + B dim7 */
 static const u8 SC_MIN6[8] = { 0, 2, 3, 5, 7, 8, 9, 11 };   /* Cm6 + B dim7 */
 static const u8 SC_DOM7[8] = { 0, 2, 4, 5, 7, 8, 10, 11 };  /* C7 + D dim7 (the brief's computed scale, offset 2) */
@@ -2214,15 +2215,15 @@ static void chord_tick(r27_t *S, u32 jz) {   /* every control tick with jazz mod
    take it as that plain chord; xt picks the voicing (jtype). Only when the stock decoded the plain chord of the button (its own
    combinations untouched). Every voice. Button table 0x2000029C: 3 bytes per button {class, row 0 major / 1 minor / 2 7th,
    held}; button = row * 12 + column, columns up the circle of fifths, left = column - 1. Not across the row's ends. */
-#define BTN    0x2000029Cu
-#define F_B468 ((void(*)(u32, u32))0x6000B469)
+#define BTN    RA(2000029C)
+#define F_B468 ((void(*)(u32, u32))(FL(6000B468) | 1u))
 static u32 bh(u32 r, int col) { return col >= 0 && col < 12 && R8(BTN + (r * 12u + (u32)col) * 3u + 2u) && R8(BTN + (r * 12u + (u32)col) * 3u + 1u) == r; }
 void chord_dec(u32 p, u32 x) {
     F_B468(p, x);
     if (!(jazz() && bro_on()) || p >= 36u) return;
     bro_t *B = bro(); B->xt = 0;
     int c = (int)(p % 12u); u32 row = R8(BTN + p * 3u + 1u);
-    if (row > 2u || R8(0x2000037Du) != row) return;                    /* a stock combination (or not a plain chord) */
+    if (row > 2u || R8(RA(2000037D)) != row) return;                    /* a stock combination (or not a plain chord) */
     u32 xt = 0, ar = row; int ac = c;
     if (row == 1u)      { if (bh(0, c - 1)) xt = XT_M69; else if (bh(2, c - 1)) xt = XT_HD; else if (bh(2, c + 1)) xt = XT_MM; }
     else if (row == 0u) { if (bh(1, c + 1)) { xt = XT_M69; ar = 1u; ac = c + 1; } else if (bh(2, c + 1)) { xt = XT_7B9; ar = 2u; ac = c + 1; } }
@@ -2232,17 +2233,17 @@ void chord_dec(u32 p, u32 x) {
         else if (bh(1, c - 1)) { xt = XT_MM; ar = 1u; ac = c - 1; }
     }
     if (!xt) return;
-    R8(0x2000037Cu) = R8(BTN + (ar * 12u + (u32)ac) * 3u); R8(0x2000037Du) = (u8)ar; B->xt = (u8)xt;
+    R8(RA(2000037C)) = R8(BTN + (ar * 12u + (u32)ac) * 3u); R8(RA(2000037D)) = (u8)ar; B->xt = (u8)xt;
 }
 /* 2.86dev2: the strum plays the 4-note block of each plate: the plate's own note slot (the stock's) + 3 more, the oldest not
    held by a touched plate (the engine has 13, one per plate: about 3 chords ring at once). sl_t: per slot its owner plate
    (+1) and the MIDI note we sent for it (an extra), so a plate let go releases its 4 notes (plate_off). */
-#define SLB      0x20002AD8u
+#define SLB      RA(20002AD8)
 #define SLMAGIC  0x534C3836u
 typedef struct { u32 magic; u8 own[13], mn[13]; unsigned short st[13]; } sl_t;
 _Static_assert(sizeof(sl_t) <= BROB - SLB, "sl_t overlaps bro_t");
-#define F_REL    ((void(*)(u32))0x60018709)   /* stock: strum slot released (veneer -> 0x2020030C) */
-#define STRUM_MIDI 0x200009D9u                 /* stock: strum notes on MIDI */
+#define F_REL    ((void(*)(u32))(FL(60018708) | 1u))   /* stock: strum slot released (veneer -> 0x2020030C) */
+#define STRUM_MIDI RA(200009D9)                 /* stock: strum notes on MIDI */
 static sl_t *sl(void) {
     sl_t *L = (sl_t *)SLB;
     if (L->magic != SLMAGIC) {
@@ -2271,7 +2272,7 @@ static void strum_chord(u32 i) {              /* plate i (0-12): its block, top 
     if (L->mn[i]) { strum_midi(0u, L->mn[i]); L->mn[i] = 0; }         /* its own slot: the stock's note (and MIDI) */
     L->own[i] = (u8)(i + 1u); L->st[i] = now;
     F_NOTEON(i, (u32)(k[3] - 12));
-    u32 used = 1u << i, midi = R8(STRUM_MIDI) && !R8(0x20006AC8u + i + 1u);
+    u32 used = 1u << i, midi = R8(STRUM_MIDI) && !R8(RA(20006AC8) + i + 1u);
     for (u32 j = 0; j < 3u; j++) {
         int best = -1, bage = -1;
         for (u32 pass = 0; pass < 2u && best < 0; pass++)              /* not a slot a touched plate holds; else any */
@@ -2287,7 +2288,7 @@ static void strum_chord(u32 i) {              /* plate i (0-12): its block, top 
         F_REL(s);                                                       /* the note it had: released, as a re-pluck does */
         /* 2.86dev3: the sub layers only: the voice's main layer (layer 0 of the engine's voice, 0x20007604) switched off for
            this note-on (the engine picks the layers at the note-on, 0x20200114) */
-        volatile u8 *ml = (volatile u8 *)(VT + (u32)R8(0x20007604u) * 0x40u);
+        volatile u8 *ml = (volatile u8 *)(VT + (u32)R8(RA(20007604)) * 0x40u);
         u8 m0 = *ml; *ml = 0;
         F_NOTEON(s, (u32)(k[j] - 12));
         *ml = m0;
@@ -2350,8 +2351,8 @@ u32 plate_off(u32 i) {
    Manual chord's bass on channel 2 (AC8 + 3); the rhythm's bass notes on channel 2 too. midi_hook (entry +0x3C, in the
    note-on / note-off builders, before mod 1's hook) sends each as the block plays it; its note-off as its note-on went
    out (mm_t: in / out per chord note and the bass). */
-#define AC8    0x20002AC8u
-#define MMB    0x20002C00u        /* mm_t: free (between mt_t and ui_t); runtime only, magic-checked */
+#define AC8    RA(20002AC8)
+#define MMB    RA(20002C00)        /* mm_t: free (between mt_t and ui_t); runtime only, magic-checked */
 #define MMMAGIC 0x4A5Bu
 typedef struct { unsigned short magic; u8 in[3], out[3]; } mm_t;
 _Static_assert(sizeof(mm_t) <= UIB - MMB, "mm_t overlaps ui_t");
@@ -2364,7 +2365,7 @@ static mm_t *mm(void) {
 #define BIN  (BROB + 0x38u)
 #define BOUT (BROB + 0x39u)
 _Static_assert(sizeof(bro_t) <= 0x38u, "bro_t reaches the bass MIDI map");
-_Static_assert(BROB + 0x3Au <= 0x20002B60u, "bro_t + the bass map overlap an_t");
+_Static_assert(BROB + 0x3Au <= RA(20002B60), "bro_t + the bass map overlap an_t");
 u32 midi_hook(u32 q, mmsg_t *m) {             /* replaces bl 0x60039000 (mod 1) in the note-on / note-off builders */
     u8 *p = m->data, n0 = p[0];
     u32 undo = 0;                             /* a note-off's map entry taken (restored if the queue was full) */
@@ -2517,7 +2518,7 @@ static void r27_tick(void) {
    them (the user: "button presses ... take a half second too long to register occasionally"). bat_led / bat_row (entry
    +0x44 / +0x48, its four bl sites) skip a write that would not change anything, and send it anyway every BAT_REFRESH
    calls (about once a second). The check itself, its low-battery warning and the low-battery shutdown are unchanged. */
-#define BATB        0x20002C50u   /* bat_t: free bytes before ST (stock page buffer, power-on / power-off only) */
+#define BATB        RA(20002C50)   /* bat_t: free bytes before ST (stock page buffer, power-on / power-off only) */
 #define BMAGIC      0xB7u
 #define BAT_REFRESH 128u
 typedef struct { u8 magic, last, c40, crow; } bat_t;
@@ -2525,8 +2526,8 @@ _Static_assert(BATB + sizeof(bat_t) <= ST && BATB >= PLB + sizeof(pl_t), "bat_t 
 static u32 row_value(u32 pwr) {         /* the voice-row byte 0x60003A5C(pwr) would write, computed as it does */
     if (R8(DE73)) return R8(MTBUF) | pwr;
     if (R8(DE78)) return R8(TRBUF) | pwr;
-    u32 x = R8(0x200000F7u) | ((u32)R8(0x200000F8u) << 1);
-    for (u32 i = 6u; i >= 2u; i--) x = R8(0x200000F0u + i) | (x << 1);
+    u32 x = R8(RA(200000F7)) | ((u32)R8(RA(200000F8)) << 1);
+    for (u32 i = 6u; i >= 2u; i--) x = R8(RA(200000F0) + i) | (x << 1);
     return (pwr | (x << 1)) & 0xFFu;
 }
 void bat_led(u32 port, u32 val) {       /* replaces bl 0x6000F518(0x40, val) in the battery check */
@@ -2547,7 +2548,7 @@ void bat_row(u32 pwr) {                 /* replaces bl 0x60003A5C(1) in the batt
    stock LED queue, CC 21 the LED writes the LED task sent, CC 22 control ticks run, CC 23 the longest gap between two
    control ticks (ms), CC 24 our own code's longest tick (control loop + vib_tick, CPU cycles / 256), CC 25 the whole
    control-loop call incl. the stock button handler (cycles / 256). Values capped at 127. */
-#define DGB      0x20002C40u               /* 16 free bytes */
+#define DGB      RA(20002C40)               /* 16 free bytes */
 #define DGMAGIC  0xD6u
 #define CYCCNT   R32(0xE0001004u)
 typedef struct { unsigned short t0, last, rd0; u8 our, all, ticks, gap, qmax, magic; } dg_t;   /* times: TICKS low 16 bits */
@@ -2558,15 +2559,15 @@ static void dg_begin(void) {
     dg_t *D = (dg_t *)DGB;
     if (D->magic != DGMAGIC) {
         R32(0xE0001FB0u) = 0xC5ACCE55u; R32(0xE000EDFCu) |= 1u << 24; R32(0xE0001000u) |= 1u;   /* DWT cycle counter on */
-        D->t0 = (unsigned short)TICKS; D->last = (unsigned short)TICKS; D->rd0 = (unsigned short)R32(0x2000AB88u); D->our = D->all = 0; D->ticks = 0; D->gap = 0; D->qmax = 0;
+        D->t0 = (unsigned short)TICKS; D->last = (unsigned short)TICKS; D->rd0 = (unsigned short)R32(RA(2000AB88)); D->our = D->all = 0; D->ticks = 0; D->gap = 0; D->qmax = 0;
         D->magic = DGMAGIC;
     }
     u32 now = TICKS & 0xFFFFu, g = (now - D->last) & 0xFFFFu; D->last = (unsigned short)now;
     if (g > D->gap) D->gap = cap7(g);
-    u32 q = (R32(LEDQ_W) - R32(0x2000AB88u)) & 0x1FFu; if (q > D->qmax) D->qmax = cap7(q);
+    u32 q = (R32(LEDQ_W) - R32(RA(2000AB88))) & 0x1FFu; if (q > D->qmax) D->qmax = cap7(q);
     D->ticks++;
     if (((now - D->t0) & 0xFFFFu) >= 100u) {
-        u32 rd = R32(0x2000AB88u);
+        u32 rd = R32(RA(2000AB88));
         dg_cc(20, D->qmax); dg_cc(21, (rd - D->rd0) & 0x1FFu); dg_cc(22, D->ticks); dg_cc(23, D->gap);
         dg_cc(24, D->our); dg_cc(25, D->all);
         D->t0 = (unsigned short)now; D->rd0 = (unsigned short)rd; D->our = D->all = 0; D->ticks = 0; D->gap = 0; D->qmax = 0;
@@ -2594,5 +2595,65 @@ void c274_wrap(void) {                   /* replaces bl c274 in the control loop
     F_C274();
 #ifdef DIAG
     dg_all(CYCCNT - c0);
+#endif
+}
+
+/* 2026-11: factory firmware 1.0.3.0's low-volume analog mute, re-done in our own code for 1.0.2.9 (owner's decision
+   2026-11-02; 1.0.3.0's own stock code does it there, so that build only passes the reading on). While a chord is held, the
+   analog part is muted (GPIO1 bit 3 set) when its volume reads low and played again (bit 3 cleared, DE5A = 0) when it reads
+   high: the sums of the last 5 readings of two sensors (0x20002944 + 0x9C = s1, + 0xA2 = s4), with hysteresis (<= 0x1D
+   low, > 0x36 high). Voice 0: always played; voice 1: s1 low -> s4 decides, s1 high -> played, else s4 high -> played;
+   voices 2+: s4 decides. Played only while 0x200009D8 is set. The chord start / stop clear bit 3 only while not muted
+   (am_unmute). sense_hook replaces the sensor loop's call of the reading store 0x600035A8 (0x6000376C), am_unmute the chord
+   start / stop's own clear (0x60008D0C / 0x6000920C): mkimg.py SITES29, written on 1.0.2.9 only. */
+#define F_35A8   ((void(*)(u32, u32, u32))(FL(600035A8) | 1u))   /* stock: store a sensor reading (channel, ..) */
+#if FW_VERSION == 29
+#define AMB      RA(20002CCC)              /* am_t: the free bytes after r27_t */
+#define AMR      RA(20002B4C)              /* the 2 x 5 readings: the free bytes after bro_t's bass MIDI map */
+#define AMMAGIC  0x4D41u
+#define SENS     RA(20002944)              /* stock: sensor readings */
+#define GPIO1_SET 0x401B8084u
+#define GPIO1_CLR 0x401B8088u
+typedef struct { unsigned short magic; u8 idx, mute; } am_t;
+_Static_assert(AMB >= R7B + sizeof(r27_t) && AMB + sizeof(am_t) <= RA(20002CD4), "am_t: after r27_t, in the page buffer");
+_Static_assert(AMR >= BROB + 0x3Au && AMR + 2u * 5u * 2u <= RA(20002B60) && (AMR & 1u) == 0, "am ring: after the bass MIDI map, before an_t");
+static am_t *am(void) {
+    am_t *A = (am_t *)AMB;
+    if (A->magic != AMMAGIC) {
+        volatile unsigned short *r = (volatile unsigned short *)AMR;
+        for (u32 i = 0; i < 10u; i++) r[i] = 0;
+        A->idx = A->mute = 0; A->magic = AMMAGIC;
+    }
+    return A;
+}
+static void am_play(am_t *A) {
+    if (!R8(RA(200009D8))) return;
+    A->mute = 0; R32(GPIO1_CLR) = 8u; R8(RA(2000DE5A)) = 0;
+}
+static void am_tick(void) {
+    am_t *A = am(); volatile unsigned short *r = (volatile unsigned short *)AMR;
+    u32 i = A->idx < 5u ? A->idx : 0;
+    r[i] = *(volatile unsigned short *)(SENS + 0x9Cu); r[5u + i] = *(volatile unsigned short *)(SENS + 0xA2u);
+    A->idx = (u8)(i + 1u == 5u ? 0 : i + 1u);
+    u32 s1 = 0, s4 = 0;
+    for (u32 k = 0; k < 5u; k++) { s1 += r[k]; s4 += r[5u + k]; }
+    s1 &= 0xFFFFu; s4 &= 0xFFFFu;
+    if (!R8(DE64)) return;                                       /* no chord held */
+    u32 v = R8(DE89);
+    if (v == 0) { am_play(A); return; }
+    if (v == 1 && s1 > 0x1Du) { if (s1 > 0x36u || s4 > 0x36u) am_play(A); return; }
+    if (s4 <= 0x1Du) { A->mute = 1; R32(GPIO1_SET) = 8u; }
+    else if (s4 > 0x36u) am_play(A);
+}
+void am_unmute(void) {                   /* the chord start / stop's "clear GPIO1 bit 3, DE5A = 0", only while not muted */
+    if (!am()->mute) { R32(GPIO1_CLR) = 8u; R8(RA(2000DE5A)) = 0; }
+}
+#else
+void am_unmute(void) {}
+#endif
+void sense_hook(u32 ch, u32 x, u32 val) {   /* replaces bl 0x600035A8 in the sensor loop (1.0.2.9 only) */
+    F_35A8(ch, x, val);
+#if FW_VERSION == 29
+    am_tick();
 #endif
 }
