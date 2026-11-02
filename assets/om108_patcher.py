@@ -651,8 +651,13 @@ def main(argv=None, tools_factory=None, folder=None, out=print, result=None):
     ap.add_argument('--settings', help='install: a settings file (JSON, written by the window); none = the Suggested Default')
     ap.add_argument('--full', action='store_true', help='restore: Full Factory Restore (every differing sector, the start-up area too)')
     ap.add_argument('--result-json', action='store_true', help=argparse.SUPPRESS)   # for the window: last line = @@RESULT {json}
+    ap.add_argument('--tester', metavar='DIR', help=argparse.SUPPRESS)  # the window's tester mode: a simulated unit (om108_tester.py)
     A = ap.parse_args(argv)
+    if A.tester:                         # nothing is sent to USB: the unit is my_unit/tester/unit_flash.bin, the user's folder beside it
+        import om108_tester as T
+        tools_factory, folder = T.factory(A.tester), Path(A.tester) / T.USER
     p = Patcher(folder or UNIT_DIR, tools_factory, out)
+    if A.tester: p.say(T.MARK)
     if A.result_json: p.prog_out = lambda pct: print('@@PROGRESS %d' % pct, flush=True)
     try:
         if A.command == 'import-backup':
