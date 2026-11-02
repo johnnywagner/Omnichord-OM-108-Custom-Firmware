@@ -75,8 +75,33 @@ BACKUPS = UNIT / 'backups'
 def stock_file():
     """The stock firmware file: backups/om108_backup_v<version>.bin (v29 = factory firmware 1.0.2.9); a tool 1.1 backup
     (om108_backup.bin) is renamed to that the first time it is looked at."""
-    return OP.find_backup(BACKUPS) or BACKUPS / OP.backup_name('29')
+    return OP.find_backup(BACKUPS) or BACKUPS / OP.backup_name(OP.unit_version(BACKUPS) or '29')
 SAFE = UNIT / 'work' / 'stock_safety_copy' / 'om108_backup.bin'     # a second copy of the stock firmware file (_guard_stock)
+_SAFE_SEEN = {}
+def safety_stocks():
+    """{version: file} of the stock firmware files in the safety copy folder (both 1.0.2.9 and 1.0.3.0 there: the
+    window shows Install Factory Version). Checked files are remembered by name, size and time."""
+    out = {}
+    try: files = sorted(p for p in SAFE.parent.iterdir() if p.suffix == '.bin' and p.is_file())
+    except OSError: return out
+    for p in files:
+        try: k = (p.name, p.stat().st_size, p.stat().st_mtime_ns)
+        except OSError: continue
+        if k not in _SAFE_SEEN:
+            try: _SAFE_SEEN[k] = OP.stock_version(p.read_bytes()) if k[1] == OP.SIZE else None
+            except OSError: continue
+        v = _SAFE_SEEN[k]
+        if v and v not in out: out[v] = p
+    return out
+def file_version(p):
+    """The factory version in a stock file's name (om108_backup_v30.bin: '30'), else None."""
+    m = re.fullmatch(r'om108_backup_v(\d+)\.bin', Path(p).name); return m.group(1) if m else None
+def safe_for(v):
+    """The safety copy of factory version v: a stock file of that version already in the folder, else om108_backup.bin
+    (unless that holds the other version's stock firmware: then om108_backup_v<version>.bin)."""
+    have = safety_stocks()
+    if v in have: return have[v]
+    return SAFE.parent / OP.backup_name(v) if any(f == SAFE for f in have.values()) else SAFE
 DUMPS = UNIT / 'dumps'
 TITLE = 'Suzuki Omnichord OM-108 Custom Firmware Tool'
 if TESTER: import om108_tester as TM                       # noqa: E402
@@ -214,6 +239,7 @@ DEFAULT_TIPS = [
     ('restore', "Puts your unit's original firmware back, from your stock firmware file.\nConnect it the same way as for Install Firmware (PLAY/UPDATE switch on UPDATE, and hold the power button until DONE)."),
     ('check', 'Reads the whole unit (nothing is written), tells you what is on it and offers to save a copy in my_unit/dumps/.\nIf it has the stock firmware and the tool has none yet, this is automatically saved as the stock firmware file.\nConnect it the same way as for Install Firmware.'),
     ('defaults', "Sets every choice back to the Suggested Default: the recommended setup, with every feature on and JohnnyW's recommended MIDI and sub sound configuration."),
+    ('factory', "Diagnostics: puts the plain factory firmware 1.0.2.9 or 1.0.3.0 on the unit. Shown only when my_unit/work/stock_safety_copy/ holds a stock firmware file of each version.\nThe tool then uses that version's stock firmware file, so Install and Restore work on it. Use this button again to go back.\nConnect it the same way as for Install Firmware."),
     ('stock', "The stock firmware file (my_unit/backups/om108_backup_v29.bin): your unit's original firmware. Every custom firmware created by this tool is generated from it."),
 ]
 TIPS = dict(DEFAULT_TIPS)
@@ -254,6 +280,8 @@ DEFAULT_POPUPS = [
     ('restore_ask', 'Reinstall the stock firmware?'),
     ('full_warning', "WARNING: Full Factory Restore.\n\nThis rewrites every part of the unit's firmware that differs from your stock firmware file, whatever is on it now (also firmware this tool does not recognize), and the start-up area too. Only your unit's own saved settings at the very top are left alone (a factory reset clears them).\n\nUse it ONLY if a normal Restore Stock Firmware fails. If it stops part way, the unit may not start normally until you run it again: the UPDATE switch always works, so just do the same again. \n\nRun the Full Factory Restore?"),
     ('factory_done', 'Your Factory Firmware backup has been installed. Let go of the power button and set the PLAY/UPDATE switch back to PLAY.'),
+    ('factory_ask', "Diagnostics: install the factory firmware {version} on your unit?\n\nWhatever is on the unit now is replaced by the plain factory firmware {version}, from:\n{file}\n\nOnly the parts of the program that differ are written (a minute or two). The start-up area and your unit's own saved settings at the very top are left alone. If it stops part way, just do the same again.\n\nAfterwards the tool uses the {version} stock firmware file, so Install Firmware and Restore Stock Firmware work on it. To go back, use Install Factory Version again and pick the other version."),
+    ('factory_version_done', 'The factory firmware {version} is installed. Let go of the power button and set the PLAY/UPDATE switch back to PLAY.\n\nIf the sounds or settings act strangely, do a factory reset (both left yellow buttons held while switching on).'),
     ('stock_restored', 'The stock firmware file was missing (deleted or moved), so the tool put it back from its safety copy:\n\n{file}'),
     ('stock_bad_restore', '{file}\n\nis not the stock OM-108 firmware (its checksum differs).\n\nThe tool has a safety copy of your stock firmware file. Put it back now? (The file above is kept, renamed to {renamed}, in the backups folder.)'),
 ]
@@ -377,6 +405,8 @@ class App(tk.Tk):
         b = tip(ttk.Button(bar, text='Check/Dump Firmware', command=self.do_check), 'check'); b.grid(row=0, column=2, padx=(6, 6), sticky='nsew'); self.always.append(b)
         tip(self._gate(ttk.Button(bar, text='Suggested Defaults', command=self.do_defaults)), 'defaults').grid(row=0, column=3, padx=(6, 0), sticky='nsew')
         self.stock_lbl = tip(ttk.Label(bottom, text=''), 'stock'); self.stock_lbl.pack(pady=(6, 0))       # centred in the window
+        self.factory_btn = tip(ttk.Button(bottom, text='Install Factory Version...', command=self.do_factory), 'factory')   # (_show_factory)
+        self.always.append(self.factory_btn)
         pf = ttk.Frame(bottom); pf.pack(fill='x', pady=(8, 4))
         # the bar across the full width; while a job runs, its percent is shown in the middle of the bar (_pct)
         self.prog = ttk.Progressbar(pf, mode='determinate', value=0, maximum=100, style='Idle.Horizontal.TProgressbar'); self.prog.pack(fill='x', expand=True, ipady=3)
@@ -747,6 +777,7 @@ class App(tk.Tk):
         work/stock_safety_copy/; if the file goes missing (deleted, moved), it is put back from that copy at once."""
         try:
             STOCK = stock_file()
+            SAFE = safe_for(OP.unit_version(BACKUPS) or (file_version(STOCK) if STOCK.exists() else None) or next(iter(sorted(safety_stocks())), '29'))
             sig = lambda p: (p.stat().st_size, p.stat().st_mtime_ns) if p.exists() else None
             now = (sig(STOCK), sig(SAFE))
             if now != self._seen:
@@ -765,11 +796,13 @@ class App(tk.Tk):
                     if repeat: messagebox.showinfo('Stock Firmware', P('stock_restored', file=STOCK))
                 if now is not None: self._seen = (sig(STOCK), sig(SAFE))
                 if not self.busy: self._refresh()
+            self._show_factory()
         except OSError as e: self.say(f'(Could not check the stock firmware file: {e})')
         if repeat: self.after(3000, self._guard_stock)
 
     def _offer_safe(self):
         """The stock firmware file is not stock: offer the safety copy (if there is a good one). True if it was put back."""
+        SAFE = safe_for(OP.unit_version(BACKUPS) or file_version(stock_file()) or next(iter(sorted(safety_stocks())), '29'))
         if not is_stock_file(SAFE): return False
         STOCK = stock_file()
         renamed = time.strftime('om108_backup_not_stock_%Y-%m-%d_%H%M%S.bin')
@@ -781,6 +814,12 @@ class App(tk.Tk):
             self.say(f'The stock firmware file was put back from the safety copy (the other file: {STOCK.parent.name}/{renamed}).')
         except OSError as e: self.say(f'Could not put the safety copy back: {e}')
         self._seen = None; self._refresh(); return True
+
+    def _show_factory(self):
+        """Install Factory Version: shown only while the safety copy folder holds both factory versions."""
+        want = {'29', '30'} <= set(safety_stocks())
+        if want and not self.factory_btn.winfo_ismapped(): self.factory_btn.pack(pady=(6, 0), after=self.stock_lbl)
+        elif not want and self.factory_btn.winfo_ismapped(): self.factory_btn.pack_forget()
 
     def _startup(self):
         STOCK = stock_file()
@@ -913,6 +952,30 @@ class App(tk.Tk):
         self.load_dict(d); self._save(); self._tester_text()
         self.say(f'--- [TESTER MODE] new simulated unit: {TM.current(TDIR)["unit"]}; {TM.current(TDIR)["folder"]}')
         self._seen = None; self._guard_stock(repeat=False); self.after(300, self._startup)
+
+    def do_factory(self):
+        if self.busy: return
+        have = safety_stocks()
+        if not {'29', '30'} <= set(have): self._show_factory(); return
+        now = OP.stock_version(stock_file().read_bytes()) if is_stock_file(stock_file()) else None
+        dlg = tk.Toplevel(self); dlg.title('Install Factory Version'); dlg.configure(bg=BG); dlg.transient(self); dlg.resizable(False, False)
+        pick = tk.StringVar(value='30' if now == '29' else '29')
+        f = ttk.Frame(dlg, padding=16); f.pack(fill='both')
+        ttk.Label(f, text='Diagnostics: which factory firmware should go on the unit?', style='Voice.TLabel').pack(anchor='w', pady=(0, 8))
+        for v in ('29', '30'):
+            ttk.Radiobutton(f, text=f'Factory firmware 1.0.{v[0]}.{v[1]}' + ('   (the tool\'s stock file now)' if v == now else ''),
+                            variable=pick, value=v).pack(anchor='w')
+        ok = {'go': False}
+        row = ttk.Frame(f); row.pack(fill='x', pady=(12, 0))
+        ttk.Button(row, text='Cancel', command=dlg.destroy).pack(side='right')
+        ttk.Button(row, text='Continue...', command=lambda: (ok.update(go=True), dlg.destroy())).pack(side='right', padx=(0, 6))
+        dlg.grab_set(); self.wait_window(dlg)
+        if not ok['go']: return
+        v = pick.get(); src = have[v]; name = f'1.0.{v[0]}.{v[1]}'
+        if messagebox.askyesno('Install Factory Version', P('factory_ask', version=name, file=f'{src.parent.parent.name}/{src.parent.name}/{src.name}'),
+                               icon='warning', default='no') and self._ready('Install Factory Version'):
+            def done(val): self._seen = None; self._guard_stock(repeat=False); messagebox.showinfo('Install Factory Version', P('factory_version_done', version=name))
+            self.run_job(f'install factory firmware {name} (diagnostics)', ['install-stock', str(src)], after=done)
 
     def do_defaults(self):
         self.load_dict(defaults()); self.say('All settings set to the Suggested Default.')

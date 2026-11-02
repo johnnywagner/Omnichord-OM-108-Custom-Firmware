@@ -143,8 +143,9 @@ def unit_image(stock, recipes, key, settings):
         return dict(OP.code_variants(stock, rec, OP.build_image(stock, rec, OP.default_settings())))[name]
     return dict(OP.legacy_images(stock, rec))[name]
 
-def start(tdir, real_unit, stocks, recipes, ukey, folder, settings, labels):
-    """Set up a fresh simulation: the unit's flash and the simulated user's folder."""
+def start(tdir, real_unit, stocks, recipes, ukey, folder, settings, labels, both=False):
+    """Set up a fresh simulation: the unit's flash and the simulated user's folder. both: the folder's
+    work/stock_safety_copy/ also holds both factory versions (the window then shows Install Factory Version)."""
     tdir = Path(tdir); v = ukey[0] or ('29' if '29' in stocks else '30')
     if v not in stocks: raise OP.Stop(f'no factory firmware {vname(v)} image: pick one first')
     if ukey[1] == 'unknown' and folder in ('current', 'refused'):
@@ -163,6 +164,11 @@ def start(tdir, real_unit, stocks, recipes, ukey, folder, settings, labels):
         (b / name).write_bytes(mine)
         installed = {'stock': 'stock', 'unknown': 'stock', 'release': 'custom'}.get(ukey[1], ukey[2])
         if folder != 'refused': (b / 'om108_state.json').write_text(json.dumps({'backup_sha256': OP.sha(mine), 'installed': installed}, indent=1))
+    if both:
+        if not {'29', '30'} <= set(stocks): raise OP.Stop('both factory firmware images are needed for that: pick the missing one first')
+        safe = user / 'work' / 'stock_safety_copy'; safe.mkdir(parents=True, exist_ok=True)
+        for x in ('29', '30'): shutil.copyfile(stocks[x], safe / ('om108_backup.bin' if x == v else f'stock_v{x}.bin'))
+        labels = (labels[0], labels[1] + ' + both factory versions in the safety copy folder')
     info = {'unit': labels[0], 'folder': labels[1], 'started': time.strftime('%Y-%m-%d %H:%M:%S')}
     (tdir / INFO).write_text(json.dumps(info, indent=1))
     return info
@@ -207,6 +213,8 @@ def choose(root, tdir, real_unit, settings, keep_ok=True):
         b = ttk.Radiobutton(f, text=lab, variable=uvar, value=i); b.pack(anchor='w', padx=12); ubtn.append(b)
     ttk.Label(f, text='The simulated tool folder has:').pack(anchor='w', pady=(12, 2))
     for k, lab in FOLDERS: ttk.Radiobutton(f, text=lab, variable=fvar, value=k).pack(anchor='w', padx=12)
+    bvar = tk.BooleanVar(value=False); ttk.Style(root).configure('TCheckbutton', background=root.cget('bg'))
+    ttk.Checkbutton(f, text='Both factory versions in the safety copy folder (shows Install Factory Version)', variable=bvar).pack(anchor='w', padx=12, pady=(6, 0))
     def show():
         for v, lab in img_rows.items():
             lab.configure(text=f'  {vname(v)}: ' + (str(stocks[v]) if v in stocks else 'none found (pick one to simulate this version)'))
@@ -221,7 +229,7 @@ def choose(root, tdir, real_unit, settings, keep_ok=True):
         try:
             w.configure(cursor='watch'); w.update()
             res['info'] = start(tdir, real_unit, stocks, recipes, k, fvar.get(), settings,
-                                (lab, dict(FOLDERS)[fvar.get()]))
+                                (lab, dict(FOLDERS)[fvar.get()]), both=bvar.get())
         except OP.Stop as e: w.configure(cursor=''); messagebox.showwarning('Tester mode', str(e), parent=w); return
         w.destroy()
     bar = ttk.Frame(f); bar.pack(fill='x', pady=(14, 0))

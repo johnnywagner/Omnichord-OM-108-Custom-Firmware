@@ -72,3 +72,18 @@ The stock firmware file was missing (deleted or moved), so the tool put it back 
 is not the stock OM-108 firmware (its checksum differs).
 
 The tool has a safety copy of your stock firmware file. Put it back now? (The file above is kept, renamed to {renamed}, in the backups folder.)
+
+[factory_ask]
+Diagnostics: install the factory firmware {version} on your unit?
+
+Whatever is on the unit now is replaced by the plain factory firmware {version}, from:
+{file}
+
+Only the parts of the program that differ are written (a minute or two). The start-up area and your unit's own saved settings at the very top are left alone. If it stops part way, just do the same again.
+
+Afterwards the tool uses the {version} stock firmware file, so Install Firmware and Restore Stock Firmware work on it. To go back, use Install Factory Version again and pick the other version.
+
+[factory_version_done]
+The factory firmware {version} is installed. Let go of the power button and set the PLAY/UPDATE switch back to PLAY.
+
+If the sounds or settings act strangely, do a factory reset (both left yellow buttons held while switching on).
