@@ -159,6 +159,6 @@ Sets every choice back to the Suggested Default: the recommended setup, with eve
 The stock firmware file (my_unit/backups/om108_backup_v29.bin, or om108_backup_v30.bin on a unit with factory firmware 1.0.3.0): your unit's original firmware. Every custom firmware created by this tool is generated from it.
 
 [factory]
-Diagnostics: puts the plain factory firmware 1.0.2.9 or 1.0.3.0 on the unit. Shown only when my_unit/work/stock_safety_copy/ holds a stock firmware file of each version.
-The tool then uses that version's stock firmware file, so Install and Restore work on it. Use this button again to go back.
+Diagnostics: the factory firmware version of the tool's stock firmware file. Click the other version to put that plain factory firmware on the unit; the tool then uses its stock firmware file, so Install and Restore work on it. Click back to go back.
+Shown only when my_unit/work/stock_safety_copy/ holds a stock firmware file of each version.
 Connect it the same way as for Install Firmware.

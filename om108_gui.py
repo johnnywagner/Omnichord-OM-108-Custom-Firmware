@@ -80,7 +80,7 @@ SAFE = UNIT / 'work' / 'stock_safety_copy' / 'om108_backup.bin'     # a second c
 _SAFE_SEEN = {}
 def safety_stocks():
     """{version: file} of the stock firmware files in the safety copy folder (both 1.0.2.9 and 1.0.3.0 there: the
-    window shows Install Factory Version). Checked files are remembered by name, size and time."""
+    window shows the Factory Version choice). Checked files are remembered by name, size and time."""
     out = {}
     try: files = sorted(p for p in SAFE.parent.iterdir() if p.suffix == '.bin' and p.is_file())
     except OSError: return out
@@ -239,7 +239,7 @@ DEFAULT_TIPS = [
     ('restore', "Puts your unit's original firmware back, from your stock firmware file.\nConnect it the same way as for Install Firmware (PLAY/UPDATE switch on UPDATE, and hold the power button until DONE)."),
     ('check', 'Reads the whole unit (nothing is written), tells you what is on it and offers to save a copy in my_unit/dumps/.\nIf it has the stock firmware and the tool has none yet, this is automatically saved as the stock firmware file.\nConnect it the same way as for Install Firmware.'),
     ('defaults', "Sets every choice back to the Suggested Default: the recommended setup, with every feature on and JohnnyW's recommended MIDI and sub sound configuration."),
-    ('factory', "Diagnostics: puts the plain factory firmware 1.0.2.9 or 1.0.3.0 on the unit. Shown only when my_unit/work/stock_safety_copy/ holds a stock firmware file of each version.\nThe tool then uses that version's stock firmware file, so Install and Restore work on it. Use this button again to go back.\nConnect it the same way as for Install Firmware."),
+    ('factory', "Diagnostics: the factory firmware version of the tool's stock firmware file. Click the other version to put that plain factory firmware on the unit; the tool then uses its stock firmware file, so Install and Restore work on it. Click back to go back.\nShown only when my_unit/work/stock_safety_copy/ holds a stock firmware file of each version.\nConnect it the same way as for Install Firmware."),
     ('stock', "The stock firmware file (my_unit/backups/om108_backup_v29.bin, or om108_backup_v30.bin on a unit with factory firmware 1.0.3.0): your unit's original firmware. Every custom firmware created by this tool is generated from it."),
 ]
 TIPS = dict(DEFAULT_TIPS)
@@ -280,7 +280,7 @@ DEFAULT_POPUPS = [
     ('restore_ask', 'Reinstall the stock firmware?'),
     ('full_warning', "WARNING: Full Factory Restore.\n\nThis rewrites every part of the unit's firmware that differs from your stock firmware file, whatever is on it now (also firmware this tool does not recognize), and the start-up area too. Only your unit's own saved settings at the very top are left alone (a factory reset clears them).\n\nUse it ONLY if a normal Restore Stock Firmware fails. If it stops part way, the unit may not start normally until you run it again: the UPDATE switch always works, so just do the same again. \n\nRun the Full Factory Restore?"),
     ('factory_done', 'Your Factory Firmware backup has been installed. Let go of the power button and set the PLAY/UPDATE switch back to PLAY.'),
-    ('factory_ask', "Diagnostics: install the factory firmware {version} on your unit?\n\nWhatever is on the unit now is replaced by the plain factory firmware {version}, from:\n{file}\n\nOnly the parts that differ are written (a minute or two from stock firmware; a few minutes when a custom firmware is on the unit). The start-up area and your unit's own saved settings at the very top are left alone. If it stops part way, just do the same again.\n\nAfterwards the tool uses the {version} stock firmware file, so Install Firmware and Restore Stock Firmware work on it. To go back, use Install Factory Version again and pick the other version."),
+    ('factory_ask', "Diagnostics: install the factory firmware {version} on your unit?\n\nWhatever is on the unit now is replaced by the plain factory firmware {version}, from:\n{file}\n\nOnly the parts that differ are written (a minute or two from stock firmware; a few minutes when a custom firmware is on the unit). The start-up area and your unit's own saved settings at the very top are left alone. If it stops part way, just do the same again.\n\nAfterwards the tool uses the {version} stock firmware file, so Install Firmware and Restore Stock Firmware work on it. To go back, click the other version again."),
     ('factory_version_done', 'The factory firmware {version} is installed. Let go of the power button and set the PLAY/UPDATE switch back to PLAY.\n\nIf the sounds or settings act strangely, do a factory reset (both left yellow buttons held while switching on).'),
     ('stock_restored', 'The stock firmware file was missing (deleted or moved), so the tool put it back from its safety copy:\n\n{file}'),
     ('stock_bad_restore', '{file}\n\nis not the stock OM-108 firmware (its checksum differs).\n\nThe tool has a safety copy of your stock firmware file. Put it back now? (The file above is kept, renamed to {renamed}, in the backups folder.)'),
@@ -379,6 +379,8 @@ class App(tk.Tk):
         s.configure('Title.TLabel', font=('TkDefaultFont', F(17), 'bold')); s.configure('By.TLabel', foreground=MUTED, font=('TkDefaultFont', F(10)))
         s.configure('TCheckbutton', background=BG, indicatorbackground=ACCENT, indicatorforeground=INK, indicatorsize=Z(max(10, round(10 * FIT)), 6))
         s.map('TCheckbutton', background=[('active', BG), ('disabled', BG)], indicatorbackground=[('disabled', '#b9dcef'), ('active', ACCENT)])
+        s.configure('TRadiobutton', background=BG, indicatorbackground=ACCENT, indicatorforeground=INK, indicatorsize=Z(max(10, round(10 * FIT)), 6))
+        s.map('TRadiobutton', background=[('active', BG), ('disabled', BG)], indicatorbackground=[('disabled', '#b9dcef'), ('active', ACCENT)])
         s.configure('TSeparator', background=INK); s.configure('Light.TSeparator', background='#6f9fd8')
         s.configure('TButton', background=ACCENT, foreground=INK, padding=(Z(10), Z(5)), bordercolor=INK)
         s.map('TButton', background=[('disabled', '#b9dcef'), ('active', '#ffffff')], foreground=[('disabled', '#5b6fa8')])
@@ -404,9 +406,14 @@ class App(tk.Tk):
         tip(self._gate(ttk.Button(bar, text='Restore Stock Firmware', command=self.do_restore)), 'restore').grid(row=0, column=1, padx=(6, 6), sticky='nsew')
         b = tip(ttk.Button(bar, text='Check/Dump Firmware', command=self.do_check), 'check'); b.grid(row=0, column=2, padx=(6, 6), sticky='nsew'); self.always.append(b)
         tip(self._gate(ttk.Button(bar, text='Suggested Defaults', command=self.do_defaults)), 'defaults').grid(row=0, column=3, padx=(6, 0), sticky='nsew')
-        self.stock_lbl = tip(ttk.Label(bottom, text=''), 'stock'); self.stock_lbl.pack(pady=(6, 0))       # centred in the window
-        self.factory_btn = tip(ttk.Button(bottom, text='Install Factory Version...', command=self.do_factory), 'factory')   # (_show_factory)
-        self.always.append(self.factory_btn)
+        srow = ttk.Frame(bottom); srow.pack(pady=(6, 0))                                                   # centred in the window
+        self.stock_lbl = tip(ttk.Label(srow, text=''), 'stock'); self.stock_lbl.pack(side='left')
+        # Install Factory Version (diagnostics): the factory version of the tool's stock file; clicking the other one installs it (_show_factory)
+        self.factory_row = ttk.Frame(srow); self.factory_var = tk.StringVar()
+        tip(ttk.Label(self.factory_row, text='Factory Version:'), 'factory').pack(side='left', padx=(0, 4))
+        for v in ('29', '30'):
+            b = tip(ttk.Radiobutton(self.factory_row, text=f'1.0.{v[0]}.{v[1]}', variable=self.factory_var, value=v,
+                                    command=lambda v=v: self.do_factory(v)), 'factory'); b.pack(side='left', padx=(4, 0)); self.always.append(b)
         pf = ttk.Frame(bottom); pf.pack(fill='x', pady=(8, 4))
         # the bar across the full width; while a job runs, its percent is shown in the middle of the bar (_pct)
         self.prog = ttk.Progressbar(pf, mode='determinate', value=0, maximum=100, style='Idle.Horizontal.TProgressbar'); self.prog.pack(fill='x', expand=True, ipady=3)
@@ -816,10 +823,12 @@ class App(tk.Tk):
         self._seen = None; self._refresh(); return True
 
     def _show_factory(self):
-        """Install Factory Version: shown only while the safety copy folder holds both factory versions."""
+        """Factory Version 1.0.2.9 / 1.0.3.0: shown only while the safety copy folder holds both factory versions; the
+        selected one is the version of the tool's stock file (while a job runs: the one being installed)."""
         want = {'29', '30'} <= set(safety_stocks())
-        if want and not self.factory_btn.winfo_ismapped(): self.factory_btn.pack(pady=(6, 0), after=self.stock_lbl)
-        elif not want and self.factory_btn.winfo_ismapped(): self.factory_btn.pack_forget()
+        if want and not self.factory_row.winfo_ismapped(): self.factory_row.pack(side='left', padx=(24, 0))
+        elif not want and self.factory_row.winfo_ismapped(): self.factory_row.pack_forget()
+        if not self.busy: self.factory_var.set((file_version(stock_file()) if stock_file().exists() else None) or '')
 
     def _startup(self):
         STOCK = stock_file()
@@ -953,29 +962,16 @@ class App(tk.Tk):
         self.say(f'--- [TESTER MODE] new simulated unit: {TM.current(TDIR)["unit"]}; {TM.current(TDIR)["folder"]}')
         self._seen = None; self._guard_stock(repeat=False); self.after(300, self._startup)
 
-    def do_factory(self):
-        if self.busy: return
+    def do_factory(self, v):
+        """Factory Version clicked: install factory firmware v (diagnostics) after one confirmation."""
         have = safety_stocks()
-        if not {'29', '30'} <= set(have): self._show_factory(); return
-        now = OP.stock_version(stock_file().read_bytes()) if is_stock_file(stock_file()) else None
-        dlg = tk.Toplevel(self); dlg.title('Install Factory Version'); dlg.configure(bg=BG); dlg.transient(self); dlg.resizable(False, False)
-        pick = tk.StringVar(value='30' if now == '29' else '29')
-        f = ttk.Frame(dlg, padding=16); f.pack(fill='both')
-        ttk.Label(f, text='Diagnostics: which factory firmware should go on the unit?', style='Voice.TLabel').pack(anchor='w', pady=(0, 8))
-        for v in ('29', '30'):
-            ttk.Radiobutton(f, text=f'Factory firmware 1.0.{v[0]}.{v[1]}' + ('   (the tool\'s stock file now)' if v == now else ''),
-                            variable=pick, value=v).pack(anchor='w')
-        ok = {'go': False}
-        row = ttk.Frame(f); row.pack(fill='x', pady=(12, 0))
-        ttk.Button(row, text='Cancel', command=dlg.destroy).pack(side='right')
-        ttk.Button(row, text='Continue...', command=lambda: (ok.update(go=True), dlg.destroy())).pack(side='right', padx=(0, 6))
-        dlg.grab_set(); self.wait_window(dlg)
-        if not ok['go']: return
-        v = pick.get(); src = have[v]; name = f'1.0.{v[0]}.{v[1]}'
-        if messagebox.askyesno('Install Factory Version', P('factory_ask', version=name, file=f'{src.parent.parent.name}/{src.parent.name}/{src.name}'),
-                               icon='warning', default='no') and self._ready('Install Factory Version'):
-            def done(val): self._seen = None; self._guard_stock(repeat=False); messagebox.showinfo('Install Factory Version', P('factory_version_done', version=name))
-            self.run_job(f'install factory firmware {name} (diagnostics)', ['install-stock', str(src)], after=done)
+        if self.busy or v not in have or (v == file_version(stock_file()) and is_stock_file(stock_file())): self._show_factory(); return
+        src = have[v]; name = f'1.0.{v[0]}.{v[1]}'
+        if not messagebox.askokcancel('Install Factory Version', P('factory_ask', version=name, file=f'{src.parent.parent.name}/{src.parent.name}/{src.name}') + '\n\n' + P('ready'),
+                                      icon='warning', default='cancel'):
+            self._show_factory(); return
+        def done(val): self._seen = None; self._guard_stock(repeat=False); messagebox.showinfo('Install Factory Version', P('factory_version_done', version=name))
+        self.run_job(f'install factory firmware {name} (diagnostics)', ['install-stock', str(src)], after=done)
 
     def do_defaults(self):
         self.load_dict(defaults()); self.say('All settings set to the Suggested Default.')
