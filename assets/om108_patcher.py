@@ -592,7 +592,7 @@ class Patcher:
         st['installed'] = 'stock'; st['journal'] = None; st['pending'] = None; self.save_state(st)
 
     def cmd_install_stock(self, path):
-        """Diagnostics (the window: Install Factory Version, shown when work/stock_safety_copy/ holds both): put the
+        """Diagnostics (the window: the Factory Version choice, shown when work/stock_safety_copy/ holds both): put the
         factory firmware in path (1.0.2.9 or 1.0.3.0, a full 16 MB stock file) on the unit, whatever it holds now. The
         versions differ only in the program (0x60002000-0x60047FFF), so only the sectors that differ are written: never
         the start-up area (it must already match, as on every unit seen) nor the top 8 KB (this unit's own settings).

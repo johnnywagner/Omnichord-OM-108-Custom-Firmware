@@ -145,7 +145,7 @@ def unit_image(stock, recipes, key, settings):
 
 def start(tdir, real_unit, stocks, recipes, ukey, folder, settings, labels, both=False):
     """Set up a fresh simulation: the unit's flash and the simulated user's folder. both: the folder's
-    work/stock_safety_copy/ also holds both factory versions (the window then shows Install Factory Version)."""
+    work/stock_safety_copy/ also holds both factory versions (the window then shows the Factory Version choice)."""
     tdir = Path(tdir); v = ukey[0] or ('29' if '29' in stocks else '30')
     if v not in stocks: raise OP.Stop(f'no factory firmware {vname(v)} image: pick one first')
     if ukey[1] == 'unknown' and folder in ('current', 'refused'):
@@ -214,7 +214,7 @@ def choose(root, tdir, real_unit, settings, keep_ok=True):
     ttk.Label(f, text='The simulated tool folder has:').pack(anchor='w', pady=(12, 2))
     for k, lab in FOLDERS: ttk.Radiobutton(f, text=lab, variable=fvar, value=k).pack(anchor='w', padx=12)
     bvar = tk.BooleanVar(value=False); ttk.Style(root).configure('TCheckbutton', background=root.cget('bg'))
-    ttk.Checkbutton(f, text='Both factory versions in the safety copy folder (shows Install Factory Version)', variable=bvar).pack(anchor='w', padx=12, pady=(6, 0))
+    ttk.Checkbutton(f, text='Both factory versions in the safety copy folder (shows the Factory Version choice)', variable=bvar).pack(anchor='w', padx=12, pady=(6, 0))
     def show():
         for v, lab in img_rows.items():
             lab.configure(text=f'  {vname(v)}: ' + (str(stocks[v]) if v in stocks else 'none found (pick one to simulate this version)'))
