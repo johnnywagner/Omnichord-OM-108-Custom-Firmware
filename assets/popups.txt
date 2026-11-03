@@ -79,7 +79,7 @@ Diagnostics: install the factory firmware {version} on your unit?
 Whatever is on the unit now is replaced by the plain factory firmware {version}, from:
 {file}
 
-Only the parts of the program that differ are written (a minute or two). The start-up area and your unit's own saved settings at the very top are left alone. If it stops part way, just do the same again.
+Only the parts that differ are written (a minute or two from stock firmware; a few minutes when a custom firmware is on the unit). The start-up area and your unit's own saved settings at the very top are left alone. If it stops part way, just do the same again.
 
 Afterwards the tool uses the {version} stock firmware file, so Install Firmware and Restore Stock Firmware work on it. To go back, use Install Factory Version again and pick the other version.
 
