@@ -157,15 +157,6 @@ when switching chords.
 | ★ “C-7th” + “F-MAJOR” | C13♭9 |
 | ★ “C-MINOR” + “G-7th” | Cm(maj9) |
 
-## What you choose in the tool
-- **MIDI:** the five presets (P1–P5): each part's channel, the presets it is sent in, MIDI Clock / Start / Stop per
-  preset, and the Drum MIDI Remap.
-- **Sub Sounds:** the sub sound and the alternate sub sound for every voice.
-- **Bonus Features:** Modulation Modes, Extras (OM-27 mode, Alternate Bass, Jazz Mode, 3rd Manual/Auto State), Spoken
-  Mode Names, Keyboard Transpose, Low Chord Volume Mute, Electric Harp, Better Clap.
-- **Always included:** Saved Settings and the stock firmware bug fixes.
-- **Suggested Default** sets every choice back to the recommended setup, with every feature on except Low Chord Volume Mute.
-
 ## The folder
 | | |
 |---|---|
