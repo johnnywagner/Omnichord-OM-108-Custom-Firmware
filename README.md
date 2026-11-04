@@ -17,29 +17,9 @@ The full guide to the new features on the instrument is the one-page **[User Man
 > **1.0.3.0** (units made from about mid-2025 on). The tool finds out which one your unit has when you click
 > Check/Dump Firmware and builds the custom firmware for it. A unit with any other factory firmware is refused, never
 > written. (1.0.3.0 support has been tested on a computer model of the unit and on one real unit; reports from 1.0.3.0 owners are welcome.)
+> Every feature and sound is the same on both; each unit keeps the small differences of its own factory firmware.
 
-## What's new (tool 1.3 & 1.2)
-- **Newer units supported:** OM-108s with factory firmware **1.0.3.0** can now install the custom firmware
-  ([#4](https://github.com/johnnywagner/Omnichord-OM-108-Custom-Firmware/issues/4)). Every feature and sound is the same
-  on both factory versions. Each unit keeps the small differences of its own factory firmware.
-- **New Bonus Feature: Low Chord Volume Mute** (off by default): Suzuki's mute from factory firmware 1.0.3.0, which
-  chokes the analog noise right before the chord knob bottoms out.
-- **Bank buttons in menus:** the VOICE and PATTERN bank buttons do nothing while Transpose, Master Tune or a modulation
-  menu is up in keyboard mode, so setting a modulation mode can't change a bank by accident. Holding G♭-7th and pressing
-  voice buttons 1-5 still picks the mode.
-- **Check/Dump Firmware** now says which factory firmware version your unit has and whether it's stock.
-- **Firmware the tool doesn't recognize:** if you have the matching stock firmware saved, the tool offers to put it back.
-- Units already running the custom firmware update with **Install Firmware** as usual; there's no need to restore stock
-  first.
-- **Keyboard Transpose** (new Bonus Feature, on by default): keyboard-mode notes follow the Transpose setting, for both
-  the sound and MIDI out. Untick it for the stock behaviour, where keyboard notes are never transposed.
-- **Fixed:** after using the D♭-minor / G♭-minor menus in keyboard mode, notes no longer lost their Sustain release
-  ([#1](https://github.com/johnnywagner/Omnichord-OM-108-Custom-Firmware/issues/1)).
-- **Fixed:** a keyboard note played right after letting go of a menu button was silent.
-- **Changed:** holding [P] or [T] together with the D♭-minor / G♭-minor menus now works like the stock [P] and [T]: the
-  newest button shows, and letting go returns to the one still held.
-- **Tool:** a unit with a factory firmware version the tool doesn't support yet is named clearly instead of failing with
-  a checksum error, and the stock backup and dumps now carry the factory version in their file names.
+Current version: **tool 1.3**. What changed in each version: [Releases](https://github.com/johnnywagner/Omnichord-OM-108-Custom-Firmware/releases).
 
 ## Quick start
 **Setup (once):**
@@ -129,6 +109,8 @@ combining Manual chords with the Auto bass (both LEDs lit).
 - **Saved Settings:** all your settings are now saved between power-offs, except for the new Jazz Mode.
 - **Keyboard Transpose:** keyboard-mode notes follow the Transpose setting (stock: they never do). A note already held
   keeps its pitch when Transpose changes; the change starts with the next note.
+- **Low Chord Volume Mute** (optional, off by default): Suzuki's mute from factory firmware 1.0.3.0, which chokes the
+  analog noise right before the chord knob bottoms out.
 - **Factory reset** (both [VOICE] and [PATTERN] left buttons (yellow) held while switching on) now sets the battery type
   to Ni-MH, and also clears the saved settings.
 - **MIDI:** the stock MIDI CC out messages (Volume & Release) are removed, making room for a fifth MIDI preset, P5.
