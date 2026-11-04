@@ -110,7 +110,7 @@ combining Manual chords with the Auto bass (both LEDs lit).
 - **Keyboard Transpose:** keyboard-mode notes follow the Transpose setting (stock: they never do). A note already held
   keeps its pitch when Transpose changes; the change starts with the next note.
 - **Low Chord Volume Mute** (optional, off by default): Suzuki's mute from factory firmware 1.0.3.0, which chokes the
-  analog noise right before the chord knob bottoms out. Available on both factory versions.
+  analog noise right before the chord knob bottoms out.
 - **Factory reset** (both [VOICE] and [PATTERN] left buttons (yellow) held while switching on) now sets the battery type
   to Ni-MH, and also clears the saved settings.
 - **MIDI:** the stock MIDI CC out messages (Volume & Release) are removed, making room for a fifth MIDI preset, P5.
