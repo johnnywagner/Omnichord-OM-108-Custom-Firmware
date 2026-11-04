@@ -18,7 +18,7 @@ The full guide to the new features on the instrument is the one-page **[User Man
 > Check/Dump Firmware and builds the custom firmware for it. A unit with any other factory firmware is refused, never
 > written. (1.0.3.0 support has been tested on a computer model of the unit and on one real unit; reports from 1.0.3.0 owners are welcome.)
 
-## What's new (tool 1.3)
+## What's new (tool 1.3 & 1.2)
 - **Newer units supported:** OM-108s with factory firmware **1.0.3.0** can now install the custom firmware
   ([#4](https://github.com/johnnywagner/Omnichord-OM-108-Custom-Firmware/issues/4)). Every feature and sound is the same
   on both factory versions. Each unit keeps the small differences of its own factory firmware.
@@ -31,8 +31,6 @@ The full guide to the new features on the instrument is the one-page **[User Man
 - **Firmware the tool doesn't recognize:** if you have the matching stock firmware saved, the tool offers to put it back.
 - Units already running the custom firmware update with **Install Firmware** as usual; there's no need to restore stock
   first.
-
-## Earlier: tool 1.2
 - **Keyboard Transpose** (new Bonus Feature, on by default): keyboard-mode notes follow the Transpose setting, for both
   the sound and MIDI out. Untick it for the stock behaviour, where keyboard notes are never transposed.
 - **Fixed:** after using the D♭-minor / G♭-minor menus in keyboard mode, notes no longer lost their Sustain release
