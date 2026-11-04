@@ -23,7 +23,7 @@ The full guide to the new features on the instrument is the one-page **[User Man
   ([#4](https://github.com/johnnywagner/Omnichord-OM-108-Custom-Firmware/issues/4)). Every feature and sound is the same
   on both factory versions. Each unit keeps the small differences of its own factory firmware.
 - **New Bonus Feature: Low Chord Volume Mute** (off by default): Suzuki's mute from factory firmware 1.0.3.0, which
-  chokes the analog noise right before the chord knob bottoms out. It can now be turned on or off on both factory versions.
+  chokes the analog noise right before the chord knob bottoms out.
 - **Bank buttons in menus:** the VOICE and PATTERN bank buttons do nothing while Transpose, Master Tune or a modulation
   menu is up in keyboard mode, so setting a modulation mode can't change a bank by accident. Holding G♭-7th and pressing
   voice buttons 1-5 still picks the mode.
