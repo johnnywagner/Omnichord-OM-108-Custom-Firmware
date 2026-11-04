@@ -65,6 +65,14 @@ The full guide to the new features on the instrument is the one-page **[User Man
 **Restore Stock Firmware** puts the original back the same way. Every write is read back and checked; if an install is
 interrupted, just run it again.
 
+**Updating from an earlier version:**
+1. Unzip the new version to a **new folder**. Don't drag it over your old tool folder.
+2. Copy the `my_unit` folder from your old tool folder into the new one, next to `om108_gui.py`. It holds your stock
+   firmware file and your settings. Very old versions have no `my_unit` folder: copy `backups`, `dumps`, `work`, `logs`
+   and `settings.ini` instead, and the tool moves them into place when it starts.
+3. Open the new `om108_gui.py`. Older backup file names are renamed for you. If your unit already runs the custom
+   firmware, just click **Install Firmware**; there's no need to restore stock first.
+
 ## What the custom firmware adds
 
 ### Startup modes (hold while switching on)
