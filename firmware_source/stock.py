@@ -50,7 +50,7 @@ CONST = {
 # around it), see port/README.md; every other one is the automatic code match, checked by port/check_table.py.
 FLASH = {
     # LED / panel display (fn)
-    # sensors (1.0.2.9 only: our analog mute, fw/mod2.c sense_hook)
+    # sensors (our analog mute, fw/mod2.c sense_hook; 1.0.3.0: am_hook at its own 0x60003834, mkimg.py SITES30)
     0x600035A8: 0x6000366C,   # fn store a sensor reading (the sensor loop's call 0x6000376C -> sense_hook on 1.0.2.9)
     0x60003984: 0x60003A4C,   # fn transpose display on the voice row
     0x60003A5C: 0x60003B24,   # fn voice row redraw

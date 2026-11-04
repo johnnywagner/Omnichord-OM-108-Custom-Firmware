@@ -38,6 +38,7 @@ _entry:
     b.w kb_moff         @ +0x80  issue #2: keyboard MIDI note-offs (bl 0x600096D4 at 0x6000BB6A / BB8C / BC6E / BC94)
     b.w sense_hook      @ +0x84  2026-11 (1.0.2.9 only): the sensor loop's reading store (bl 0x600035A8 at 0x6000376C), then the analog mute
     b.w am_unmute       @ +0x88  2026-11 (1.0.2.9 only): the chord start / stop's analog unmute (0x60008D0C / 0x6000920C), only while not muted
+    b.w am_hook         @ +0x8C  2026-11 (1.0.3.0 only): the sensor loop's call of 1.0.3.0's own analog mute (bl 0x60003284 at 0x60003834) -> ours
 
     .text
     .thumb_func
