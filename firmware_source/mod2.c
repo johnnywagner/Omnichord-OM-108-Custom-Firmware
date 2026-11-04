@@ -81,6 +81,8 @@ typedef unsigned char u8; typedef signed char s8; typedef unsigned int u32;
 #define CF_EXTRAS  0x02u           /* 27 mode, the alternate bass, jazz, the third Manual/Auto state */
 #define CF_SPOKEN  0x04u           /* spoken rhythm / modulation mode names */
 #define CF_KTR     0x40u           /* keyboard notes follow Transpose (issue #2; stock: they never do) */
+#define CF_AMOFF   0x80u           /* the low-volume analog mute OFF (the tool's Low Chord Volume Mute switch, stored inverted
+                                      so a block from an older tool, bit 7 = 0, keeps it on): am_tick */
 #define CF_DEFAULT 0x7Fu
 #define CLK_DEFAULT 0x18u          /* P4 / P5 (2.82) */
 static int cfg_ok(void) { return R32(CFG) == CFG_MAGIC && R32(CFG + 60u) == ~CFG_MAGIC && R8(CFG + 4u) == 1u; }
@@ -1337,10 +1339,26 @@ static u32 ma_rec(void) {                /* panel record [7] */
     u32 m = ma_state();
     return m == MA_THIRD ? (((const r27_t *)R7B)->magic == R7MAGIC && ((const r27_t *)R7B)->mfrom == MA_MANUAL ? 3u : 2u) : m;
 }
+/* 2026-11-03 (the owner): the VOICE and PATTERN bank buttons do nothing while a menu is up (depth, speed, mode selection; stock T / P
+   already block them in keyboard mode). Also the VOICE bank button with T / P held out of keyboard mode, which 1.0.3.0 allows and
+   1.0.2.9 doesn't: the same on both. Hidden from the stock until let go, so it doesn't act when the menu closes first. Before
+   r27_keys: in 27 mode the PATTERN bank button is a rhythm button, blocked too. Only once the panel is live (the restore's presses). */
+static u32 bank_keys(u32 row, u32 bits) {
+    ui_t *U = (ui_t *)UIB;
+    if ((row != 4u && row != 5u) || U->magic != UMAGIC || !R8(KEYS_EN)) return bits;
+    r27_t *S = r27();
+    u32 b = colbit(row == 4u ? 0x27u : 0x2Du), m = row == 4u ? 0x20u : 0x40u;      /* vdn: bits 0-4 the voice buttons, 5 / 6 these */
+    if (bits & b) {
+        if ((U->menu && U->menu != MENU_KVIB) || (row == 4u && (R8(KEY(0u)) || R8(KEY(1u))))) S->vdn |= (u8)m;
+        if (S->vdn & m) bits &= ~b;
+    } else S->vdn &= (u8)~m;
+    return bits;
+}
 u32 row_filter(u32 row, u32 bits) {
     bits |= inj_bits(row);
     if (R8(ST) == PH_EARLY) return bits;  /* 2.78: power-on restore (restore_early): the injected presses only */
     if (row == 5u) bits = ma_keys(bits);   /* 2.79 */
+    bits = bank_keys(row, bits);          /* the bank buttons, no use in a menu */
     bits = r27_keys(row, bits);           /* 27 mode's PATTERN buttons */
     ui_t *U = (ui_t *)UIB;
     if (U->magic != UMAGIC) return bits;
@@ -2598,16 +2616,20 @@ void c274_wrap(void) {                   /* replaces bl c274 in the control loop
 #endif
 }
 
-/* 2026-11: factory firmware 1.0.3.0's low-volume analog mute, re-done in our own code for 1.0.2.9 (owner's decision
-   2026-11-02; 1.0.3.0's own stock code does it there, so that build only passes the reading on). While a chord is held, the
-   analog part is muted (GPIO1 bit 3 set) when its volume reads low and played again (bit 3 cleared, DE5A = 0) when it reads
-   high: the sums of the last 5 readings of two sensors (0x20002944 + 0x9C = s1, + 0xA2 = s4), with hysteresis (<= 0x1D
-   low, > 0x36 high). Voice 0: always played; voice 1: s1 low -> s4 decides, s1 high -> played, else s4 high -> played;
-   voices 2+: s4 decides. Played only while 0x200009D8 is set. The chord start / stop clear bit 3 only while not muted
-   (am_unmute). sense_hook replaces the sensor loop's call of the reading store 0x600035A8 (0x6000376C), am_unmute the chord
-   start / stop's own clear (0x60008D0C / 0x6000920C): mkimg.py SITES29, written on 1.0.2.9 only. */
+/* 2026-11: factory firmware 1.0.3.0's low-volume analog mute, in our own code on both factory versions, so the tool's switch
+   Low Chord Volume Mute (CF_AMOFF; off in the Suggested Default, owner 2026-11-03) can turn it off on both (owner's decisions 2026-11-02 / 11-03: the same behaviour as 1.0.3.0,
+   after trying lower levels and other knob rules on the unit: little gain). While a chord is held, the analog part is muted
+   (GPIO1 bit 3 set) when its volume reads low and played again (bit 3 cleared, DE5A = 0) when it reads high: the sums of the
+   last 5 readings of two sensors (0x20002944 + 0x9C = s1, the main volume; + 0xA2 = s4, the chord volume), with hysteresis
+   (<= AM_LO low, > AM_HI high). Omni 1: always played (muting it also takes part of its sub); Omni 2: s1 low -> s4 decides,
+   s1 high -> played, else s4 high -> played; every other voice: s4 decides. Played only while 0x200009D8 is set.
+   1.0.2.9: sense_hook replaces the sensor loop's call of the reading store 0x600035A8 (0x6000376C), am_unmute the chord
+   start / stop's own clear (0x60008D0C / 0x6000920C): mkimg.py SITES29. 1.0.3.0: am_hook replaces the sensor loop's call of
+   its own mute (bl 0x60003284 at 0x60003834, after the store), and the mute flag is its own 0x2000DE44, which its chord
+   start / stop (0x60009370) already read: mkimg.py SITES30. */
 #define F_35A8   ((void(*)(u32, u32, u32))(FL(600035A8) | 1u))   /* stock: store a sensor reading (channel, ..) */
-#if FW_VERSION == 29
+#define AM_LO    0x1Du                     /* muted at or below: as 1.0.3.0 */
+#define AM_HI    0x36u                     /* played above: as 1.0.3.0 */
 #define AMB      RA(20002CCC)              /* am_t: the free bytes after r27_t */
 #define AMR      RA(20002B4C)              /* the 2 x 5 readings: the free bytes after bro_t's bass MIDI map */
 #define AMMAGIC  0x4D41u
@@ -2615,6 +2637,11 @@ void c274_wrap(void) {                   /* replaces bl c274 in the control loop
 #define GPIO1_SET 0x401B8084u
 #define GPIO1_CLR 0x401B8088u
 typedef struct { unsigned short magic; u8 idx, mute; } am_t;
+#if FW_VERSION == 29
+#define AM_MUTED(A) ((A)->mute)
+#else
+#define AM_MUTED(A) R8(0x2000DE44u)        /* 1.0.3.0's own mute flag (new in 1.0.3.0: no 1.0.2.9 address) */
+#endif
 _Static_assert(AMB >= R7B + sizeof(r27_t) && AMB + sizeof(am_t) <= RA(20002CD4), "am_t: after r27_t, in the page buffer");
 _Static_assert(AMR >= BROB + 0x3Au && AMR + 2u * 5u * 2u <= RA(20002B60) && (AMR & 1u) == 0, "am ring: after the bass MIDI map, before an_t");
 static am_t *am(void) {
@@ -2628,7 +2655,7 @@ static am_t *am(void) {
 }
 static void am_play(am_t *A) {
     if (!R8(RA(200009D8))) return;
-    A->mute = 0; R32(GPIO1_CLR) = 8u; R8(RA(2000DE5A)) = 0;
+    AM_MUTED(A) = 0; R32(GPIO1_CLR) = 8u; R8(RA(2000DE5A)) = 0;
 }
 static void am_tick(void) {
     am_t *A = am(); volatile unsigned short *r = (volatile unsigned short *)AMR;
@@ -2638,22 +2665,24 @@ static void am_tick(void) {
     u32 s1 = 0, s4 = 0;
     for (u32 k = 0; k < 5u; k++) { s1 += r[k]; s4 += r[5u + k]; }
     s1 &= 0xFFFFu; s4 &= 0xFFFFu;
-    if (!R8(DE64)) return;                                       /* no chord held */
+    if (cf(CF_AMOFF) || !R8(DE64)) return;                       /* the switch off (never muted: as stock 1.0.2.9), or no chord held */
     u32 v = R8(DE89);
-    if (v == 0) { am_play(A); return; }
-    if (v == 1 && s1 > 0x1Du) { if (s1 > 0x36u || s4 > 0x36u) am_play(A); return; }
-    if (s4 <= 0x1Du) { A->mute = 1; R32(GPIO1_SET) = 8u; }
-    else if (s4 > 0x36u) am_play(A);
+    if (v == 0) { am_play(A); return; }                          /* Omni 1: never muted (its sub is partly analog) */
+    if (v == 1 && s1 > AM_LO) { if (s1 > AM_HI || s4 > AM_HI) am_play(A); return; }   /* Omni 2: the main volume up */
+    if (s4 <= AM_LO) { AM_MUTED(A) = 1; R32(GPIO1_SET) = 8u; }
+    else if (s4 > AM_HI) am_play(A);
 }
+#if FW_VERSION == 29
 void am_unmute(void) {                   /* the chord start / stop's "clear GPIO1 bit 3, DE5A = 0", only while not muted */
     if (!am()->mute) { R32(GPIO1_CLR) = 8u; R8(RA(2000DE5A)) = 0; }
 }
+void sense_hook(u32 ch, u32 x, u32 val) {   /* replaces bl 0x600035A8 in the sensor loop */
+    F_35A8(ch, x, val);
+    am_tick();
+}
+void am_hook(void) {}
 #else
 void am_unmute(void) {}
+void sense_hook(u32 ch, u32 x, u32 val) { F_35A8(ch, x, val); }
+void am_hook(void) { am_tick(); }        /* replaces 1.0.3.0's bl 0x60003284 (its own mute) in the sensor loop */
 #endif
-void sense_hook(u32 ch, u32 x, u32 val) {   /* replaces bl 0x600035A8 in the sensor loop (1.0.2.9 only) */
-    F_35A8(ch, x, val);
-#if FW_VERSION == 29
-    am_tick();
-#endif
-}
