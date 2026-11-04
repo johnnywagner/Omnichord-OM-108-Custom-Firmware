@@ -134,6 +134,9 @@ The unit announces the rhythm mode chosen at power-on ([PATTERN (swing/waltz)]: 
 In keyboard mode, the chromatic keyboard notes follow the Transpose setting, like the chords and the strumplate do (MIDI out too). If you change Transpose while holding a note, the new setting starts with the next note you play.
 **Off:** the stock behavior: keyboard notes ignore Transpose.
 
+[analog_mute]
+When enabled, the chord knob hard mutes right before it bottoms out, choking any unwanted analog noise. This was added by Suzuki on newer models but may not be desirable for all use cases. If you don't notice a difference, leave it off. This is never applied on “omni 1” and only on “omni 2” with [Main Volume] also low.
+
 [install]
 Writes the custom firmware onto the unit, made from your stock firmware file and the settings chosen above.
 **Flashing Instructions:**
@@ -144,11 +147,11 @@ Writes the custom firmware onto the unit, made from your stock firmware file and
 **Afterwards:** set the switch back to PLAY and test.
 
 [restore]
-Puts your unit's original firmware back, from your stock firmware file.
+Puts the stock firmware back on your unit, from your stock firmware file.
 Connect it the same way as for Install Firmware (PLAY/UPDATE switch on UPDATE, and hold the power button until DONE).
 
 [check]
-Reads the whole unit (nothing is written), tells you what is on it and offers to save a copy in my_unit/dumps/.
+Reads the whole unit (nothing is written), tells you what is on it and its factory firmware version, and offers to save a copy in my_unit/dumps/.
 If it has the stock firmware and the tool has none yet, this is automatically saved as the stock firmware file.
 Connect it the same way as for Install Firmware.
 
@@ -156,4 +159,8 @@ Connect it the same way as for Install Firmware.
 Sets every choice back to the Suggested Default: the recommended setup, with every feature on and JohnnyW's recommended MIDI and sub sound configuration.
 
 [stock]
-The stock firmware file (my_unit/backups/om108_backup_v29.bin): your unit's original firmware. Every custom firmware created by this tool is generated from it.
+The stock firmware file (my_unit/backups/om108_backup_v29.bin = factory firmware 1.0.2.9, om108_backup_v30.bin = 1.0.3.0). Every custom firmware created by this tool is generated from it.
+
+[factory]
+Which factory firmware Restore Stock Firmware puts on the unit. Pick a version and click Restore Stock Firmware to install it (the tool then uses that version's stock firmware file, so Install and Restore work on it).
+Shown only when my_unit/work/stock_safety_copy/ holds a stock firmware file of each version.

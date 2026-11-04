@@ -46,9 +46,6 @@ Save a copy of the firmware that is on the unit now (in the dumps folder)?
 [install_done]
 Done. You can let go of the power button and set the PLAY/UPDATE switch back to PLAY. Check the hover tooltips on each setting for a detailed explanation on how to use them. I hope you find this custom firmware useful.
 
-[restore_ask]
-Reinstall the stock firmware?
-
 [full_warning]
 WARNING: Full Factory Restore.
 
@@ -72,3 +69,22 @@ The stock firmware file was missing (deleted or moved), so the tool put it back 
 is not the stock OM-108 firmware (its checksum differs).
 
 The tool has a safety copy of your stock firmware file. Put it back now? (The file above is kept, renamed to {renamed}, in the backups folder.)
+
+[factory_ask]
+Put the factory firmware {version} on your unit?
+
+Whatever is on the unit now is replaced by the plain factory firmware {version}, from:
+{file}
+
+[unknown_offer]
+This tool doesn't recognize the firmware on your unit, so it can't safely install over it.
+
+You have the factory firmware {version} saved:
+{file}
+
+Replace whatever is on the unit with it? You can then install the custom firmware as usual. Anything on the unit that isn't saved somewhere else will be lost.
+
+[factory_version_done]
+The factory firmware {version} is installed. Let go of the power button and set the PLAY/UPDATE switch back to PLAY.
+
+If the sounds or settings act strangely, do a factory reset (both left yellow buttons held while switching on).

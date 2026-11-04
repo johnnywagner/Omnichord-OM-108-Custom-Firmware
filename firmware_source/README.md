@@ -22,7 +22,9 @@ into the machine code the chip runs.
 | `mod2.c` | **The main code** (C language, about 2,500 lines). Every feature lives here, each in its own section with a heading comment (search for `----` to jump between them). A good place to start reading: the "settings block" section near the top, which is where the firmware reads the choices you make in the tool. |
 | `entry.s` | **The doorways** (assembly language). A short table of addresses: each changed place in Suzuki's program jumps to one entry here, which leads into the right part of `mod2.c`. Also a few tiny pieces of code that have to be written in assembly. |
 | `link.ld` | **Where it goes** (linker script, a few lines). Tells the build tools to place the code at memory address `0x6003A000`, the unused space it lives in. |
-| `build.sh` | **How it's built** (a few commands). Runs the free clang / LLVM compiler to turn the two code files into the machine code. |
+| `mod1.s`, `mod1_syms.s` | **The MIDI routing** (assembly language): the small first part of the modification, which sends each sound to the MIDI channel you chose in the tool. |
+| `stock.py` | **The address book** (Python, numbers only). Suzuki's two factory firmware versions (1.0.2.9 and 1.0.3.0) keep their parts at slightly different addresses; this table lists where each one is in each version, so the same code is built once for each. |
+| `build.sh` | **How it's built** (a few commands). Runs the free clang / LLVM compiler to turn the code files into the machine code, once for each factory firmware version. |
 | `DEVELOPMENT.md` | **The starting point for making your own changes:** how the modification works, the safety rules, and where everything is. For programmers, and just as useful to hand to an AI coding assistant. |
 | `notes/` | **The raw notes** from figuring out how the stock firmware works: addresses, what the parts of the original program do, the touch sensor, lessons learned. |
 | `ghidra/` | **The scripts** used with Ghidra (a free tool) to turn the original firmware back into readable code. The result isn't included: it would be Suzuki's code. |

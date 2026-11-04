@@ -36,6 +36,9 @@ _entry:
     b.w kb_noteon       @ +0x78  issue #2: keyboard sample note-ons (bl 0x600186D8 at 0x6000B760 / B9BA / CBD2 / D284 / D71E)
     b.w kb_mon          @ +0x7C  issue #2: keyboard MIDI note-ons (bl 0x600096A0 at 0x6000B9DE / 0x6000BA04)
     b.w kb_moff         @ +0x80  issue #2: keyboard MIDI note-offs (bl 0x600096D4 at 0x6000BB6A / BB8C / BC6E / BC94)
+    b.w sense_hook      @ +0x84  2026-11 (1.0.2.9 only): the sensor loop's reading store (bl 0x600035A8 at 0x6000376C), then the analog mute
+    b.w am_unmute       @ +0x88  2026-11 (1.0.2.9 only): the chord start / stop's analog unmute (0x60008D0C / 0x6000920C), only while not muted
+    b.w am_hook         @ +0x8C  2026-11 (1.0.3.0 only): the sensor loop's call of 1.0.3.0's own analog mute (bl 0x60003284 at 0x60003834) -> ours
 
     .text
     .thumb_func
@@ -50,7 +53,7 @@ blink_wrap:
     sub     sp, #8
     str     r4, [sp]
     str     r5, [sp, #4]
-    ldr     r6, =0x60004EF1
+    ldr     r6, =(FL(60004EF0) | 1)
     blx     r6
     add     sp, #8
     bl      blink_after
@@ -70,7 +73,7 @@ scan_wrap:
     mov     ip, r0
     pop     {r0-r4, lr}
     mov     r1, ip
-    ldr     ip, =0x60009B21
+    ldr     ip, =(FL(60009B20) | 1)
     bx      ip
     .ltorg
 
@@ -106,7 +109,7 @@ pwm_hook:
     cmp     r1, #3
     bhi     2f
     push    {r4, r5}
-    ldr     r4, =0x20002B60
+    ldr     r4, =RA(20002B60)
     ldr     r5, [r4]
     ldr     ip, =0x414E3232
     cmp     r5, ip
@@ -117,7 +120,7 @@ pwm_hook:
     movs    r5, #1
     strb    r5, [r4, #44]
 3:  pop     {r4, r5}
-2:  ldr     ip, =0x600166D5
+2:  ldr     ip, =(FL(600166D4) | 1)
     bx      ip
 1:  movs    r0, #1
     bx      lr
@@ -133,7 +136,7 @@ r27_step_wrap:
     push    {r0-r3, ip, lr}
     bl      r27_step
     pop     {r0-r3, ip, lr}
-    ldr     r4, =0x2000DE42
+    ldr     r4, =RA(2000DE42)
     ldrb    r3, [r4]
     bx      lr
     .ltorg
@@ -149,7 +152,7 @@ strum_wrap:
     mov     r0, sp
     bl      strum_shift
     pop     {r0-r4, lr}
-    ldr     ip, =0x6000BD8D
+    ldr     ip, =(FL(6000BD8C) | 1)
     bx      ip
     .ltorg
 
@@ -204,6 +207,6 @@ led_prio:
     bx      ip
     .ltorg
     .endm
-    KBNOTE kb_noteon, 0x600186D9
-    KBNOTE kb_mon, 0x600096A1
-    KBNOTE kb_moff, 0x600096D5
+    KBNOTE kb_noteon, (FL(600186D8) | 1)
+    KBNOTE kb_mon, (FL(600096A0) | 1)
+    KBNOTE kb_moff, (FL(600096D4) | 1)

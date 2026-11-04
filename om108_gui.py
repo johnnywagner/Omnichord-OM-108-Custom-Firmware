@@ -12,7 +12,7 @@ about your unit in my_unit/ (the stock firmware in backups/, copies in dumps/, l
 until the stock firmware of your unit is in my_unit/backups/om108_backup_v29.bin (checked against the known stock firmware). If it is missing, the window offers to check
 the unit, which reads it (read only) and keeps it if it is the stock firmware.
 
-Version 0.23: Install Firmware installs the firmware with the choices in the window (MIDI, Sub Sounds, Bonus Features).
+Install Firmware installs the firmware with the choices in the window (MIDI, Sub Sounds, Bonus Features).
 Hold F while clicking Restore Stock Firmware for the Full Factory Restore. Hover over a heading or a checkbox for an explanation."""
 import queue, sys, os, threading, traceback, hashlib, configparser, shutil, time, re, subprocess, json
 import importlib.util
@@ -62,15 +62,45 @@ def Z(n, lo=1):
     """A size in pixels (padding, box sizes) at the current zoom."""
     return max(lo, round(n * ZOOM))
 
-GUI_VERSION = '0.42'
+GUI_VERSION = '0.44'
 SETTINGS_ACTIVE = True       # the firmware reads the settings block (Install uses the window's choices)
 SETTINGS = UNIT / 'settings.ini'
 BACKUPS = UNIT / 'backups'
 def stock_file():
     """The stock firmware file: backups/om108_backup_v<version>.bin (v29 = factory firmware 1.0.2.9); a tool 1.1 backup
     (om108_backup.bin) is renamed to that the first time it is looked at."""
-    return OP.find_backup(BACKUPS) or BACKUPS / OP.backup_name('29')
-SAFE = UNIT / 'work' / 'stock_safety_copy' / 'om108_backup.bin'     # a second copy of the stock firmware file (_guard_stock)
+    return OP.find_backup(BACKUPS) or BACKUPS / OP.backup_name(OP.unit_version(BACKUPS) or '29')
+SAFE_DIR = UNIT / 'work' / 'stock_safety_copy'                      # a second copy of the stock firmware file (_guard_stock): om108_backup_v<version>.bin
+_SAFE_SEEN = {}
+def safety_stocks():
+    """{version: file} of the stock firmware files in the safety copy folder (both 1.0.2.9 and 1.0.3.0 there: the
+    window shows the Factory Version choice). Checked files are remembered by name, size and time. A stock file with
+    another name (om108_backup.bin from an earlier tool) is renamed with its version, unless that name is taken."""
+    out = {}
+    try: files = sorted(p for p in SAFE_DIR.iterdir() if p.suffix == '.bin' and p.is_file())
+    except OSError: return out
+    for p in files:
+        try: k = (p.name, p.stat().st_size, p.stat().st_mtime_ns)
+        except OSError: continue
+        if k not in _SAFE_SEEN:
+            try: _SAFE_SEEN[k] = OP.stock_version(p.read_bytes()) if k[1] == OP.SIZE else None
+            except OSError: continue
+        v = _SAFE_SEEN[k]
+        if v and p.name != OP.backup_name(v) and not (SAFE_DIR / OP.backup_name(v)).exists():
+            try: os.replace(p, SAFE_DIR / OP.backup_name(v)); p = SAFE_DIR / OP.backup_name(v)
+            except OSError: pass
+        if v and v not in out: out[v] = p
+    return out
+def stock_for(v):
+    """A good stock firmware file of factory version v: the tool's own, else the safety copy; None if there is none."""
+    p = BACKUPS / OP.backup_name(v)
+    return p if p.exists() and is_stock_file(p) and OP.stock_version(p.read_bytes()) == v else safety_stocks().get(v)
+def file_version(p):
+    """The factory version in a stock file's name (om108_backup_v30.bin: '30'), else None."""
+    m = re.fullmatch(r'om108_backup_v(\d+)\.bin', Path(p).name); return m.group(1) if m else None
+def safe_for(v):
+    """The safety copy of factory version v: a stock file of that version already in the folder, else om108_backup_v<version>.bin."""
+    return safety_stocks().get(v) or SAFE_DIR / OP.backup_name(v)
 DUMPS = UNIT / 'dumps'
 TITLE = 'Suzuki Omnichord OM-108 Custom Firmware Tool'
 
@@ -90,14 +120,14 @@ SUB_ALT = [None, 2, 1, 7, 19, 2, 11, 20, 15, 2]
 FLAGS = [('drum_map', 'midi', 'drum_note_remap'), ('electric_harp', 'sounds', 'electric_harp'),
          ('better_clap', 'sounds', 'better_clap'), ('modulation', 'features', 'modulation_modes'),
          ('extras', 'features', 'extras'), ('spoken_names', 'features', 'spoken_mode_names'),
-         ('kb_transpose', 'features', 'keyboard_transpose')]
+         ('kb_transpose', 'features', 'keyboard_transpose'), ('analog_mute', 'features', 'low_chord_volume_mute')]
 
 def defaults():
     return {'midi': {v: {'channel': c, 'presets': list(p)} for v, (c, p) in MIDI_DEFAULT.items()},
             'clock': list(CLOCK_DEFAULT),
             'subs': [None if n is None else {'sub': n, 'alt': a} for n, a in zip(SUB_NRM, SUB_ALT)],
             'drum_map': True, 'electric_harp': True, 'better_clap': True, 'modulation': True, 'extras': True, 'spoken_names': True,
-            'kb_transpose': True}
+            'kb_transpose': True, 'analog_mute': False}
 
 # ------------------------------------------------------------------------------------------------- settings.ini
 def key(name): return name.lower().replace('. ', '_').replace(' ', '_')
@@ -117,7 +147,7 @@ def ini_text(d, win=None):
         if s: L += [f'{key(VOICES[v])}_sub = {SUBS[s["sub"]]}', f'{key(VOICES[v])}_alt = {SUBS[s["alt"]]}']
     L += [f'electric_harp = {yn(d["electric_harp"])}', f'better_clap = {yn(d["better_clap"])}', '', '[bonus features]',
           f'modulation_modes = {yn(d["modulation"])}', f'extras = {yn(d["extras"])}', f'spoken_mode_names = {yn(d["spoken_names"])}',
-          f'keyboard_transpose = {yn(d["kb_transpose"])}', '']
+          f'keyboard_transpose = {yn(d["kb_transpose"])}', f'low_chord_volume_mute = {yn(d["analog_mute"])}', '']
     if win: L += ['[window]', '# the window size you set (it keeps its proportions; delete this line for the size fitted to the screen)', f'size = {win[0]} x {win[1]}', '']
     return '\n'.join(L)
 
@@ -203,11 +233,13 @@ DEFAULT_TIPS = [
     ('extras', '**OM-27 mode:** hold the [PATTERN (slow rock/funk)] button on startup. The 6 [PATTERN] buttons (including the yellow one) then play the 6 OM-27 rhythm patterns.\n  - From left to right: Latin (yellow), Rock, Foxtrot, Slow Rock, Waltz, Swing.\n  - Hold any 2 [PATTERN] buttons and press the [KEYBOARD (ON)] button to lock the selection.\n  - Otherwise, this mode works just like the OM-27.\n\n**Alternate Bass:** hold the [PATTERN] left button (yellow) on startup for an alternate (plucked) bass sound. Hold the [VOICE] left button (yellow) for the stock bass sound.\n\n**Jazz Mode:** hold the [KEYBOARD (ON)] button on startup. Changes and adds chord fingerings, and voice leads intelligently when switching chords. This is the only setting NOT remembered between power cycles. Have fun!\n\n**3rd Manual/Auto State:** hold the [Chord Manual/Auto] button and press the [KEYBOARD (ON)] button at any time (both LEDs lit). This third state combines Manual chords with the Auto bass. Do the same again to go back.'),
     ('spoken_names', 'The unit announces the rhythm mode chosen at power-on ([PATTERN (swing/waltz)]: “84 mode”, [PATTERN (country/bossanova)]: “108 mode”, [PATTERN (slow rock/funk)]: “27 mode”) and the modulation mode selected by tapping the “G♭-7th” chord button. I recommend leaving this on.\n**Off:** the modes still change and the LEDs still show them; nothing is spoken.'),
     ('kb_transpose', 'In keyboard mode, the chromatic keyboard notes follow the Transpose setting, like the chords and the strumplate do (MIDI out too). If you change Transpose while holding a note, the new setting starts with the next note you play.\n**Off:** the stock behavior: keyboard notes ignore Transpose.'),
+    ('analog_mute', "When enabled, the chord knob hard mutes right before it bottoms out, choking any unwanted analog noise. This was added by Suzuki on newer models but may not be desirable for all use cases. If you don't notice a difference, leave it off. This is never applied on “omni 1” and only on “omni 2” with [Main Volume] also low."),
     ('install', 'Writes the custom firmware onto the unit, made from your stock firmware file and the settings chosen above.\n**Flashing Instructions:**\n1. Turn the Omnichord off, leaving the batteries in.\n2. Remove the battery cover and set the PLAY/UPDATE switch to UPDATE with a small screwdriver or similar tool.\n3. Connect the USB-B port to your computer and click this button to proceed.\n4. **IMPORTANT:** During all reads and writes, the red power button must be held down! If it is released during a transfer, you will need to start over.\n**Afterwards:** set the switch back to PLAY and test.'),
-    ('restore', "Puts your unit's original firmware back, from your stock firmware file.\nConnect it the same way as for Install Firmware (PLAY/UPDATE switch on UPDATE, and hold the power button until DONE)."),
-    ('check', 'Reads the whole unit (nothing is written), tells you what is on it and offers to save a copy in my_unit/dumps/.\nIf it has the stock firmware and the tool has none yet, this is automatically saved as the stock firmware file.\nConnect it the same way as for Install Firmware.'),
+    ('restore', "Puts the stock firmware back on your unit, from your stock firmware file.\nConnect it the same way as for Install Firmware (PLAY/UPDATE switch on UPDATE, and hold the power button until DONE)."),
+    ('check', 'Reads the whole unit (nothing is written), tells you what is on it and its factory firmware version, and offers to save a copy in my_unit/dumps/.\nIf it has the stock firmware and the tool has none yet, this is automatically saved as the stock firmware file.\nConnect it the same way as for Install Firmware.'),
     ('defaults', "Sets every choice back to the Suggested Default: the recommended setup, with every feature on and JohnnyW's recommended MIDI and sub sound configuration."),
-    ('stock', "The stock firmware file (my_unit/backups/om108_backup_v29.bin): your unit's original firmware. Every custom firmware created by this tool is generated from it."),
+    ('factory', "Which factory firmware Restore Stock Firmware puts on the unit. Pick a version and click Restore Stock Firmware to install it (the tool then uses that version's stock firmware file, so Install and Restore work on it).\nShown only when my_unit/work/stock_safety_copy/ holds a stock firmware file of each version."),
+    ('stock', "The stock firmware file (my_unit/backups/om108_backup_v29.bin = factory firmware 1.0.2.9, om108_backup_v30.bin = 1.0.3.0). Every custom firmware created by this tool is generated from it."),
 ]
 TIPS = dict(DEFAULT_TIPS)
 
@@ -244,9 +276,11 @@ DEFAULT_POPUPS = [
     ('check_settings', 'Your Omnichord OM-108 currently has {result}.\n\nShow its settings in the window? (Your current choices are replaced; settings.ini is saved with them.)'),
     ('check_done', 'Your Omnichord OM-108 currently has {result}.\n\nYou can let go of the power button.\n\nSave a copy of the firmware that is on the unit now (in the dumps folder)?'),
     ('install_done', 'Done. You can let go of the power button and set the PLAY/UPDATE switch back to PLAY. Check the hover tooltips on each setting for a detailed explanation on how to use them. I hope you find this custom firmware useful.'),
-    ('restore_ask', 'Reinstall the stock firmware?'),
     ('full_warning', "WARNING: Full Factory Restore.\n\nThis rewrites every part of the unit's firmware that differs from your stock firmware file, whatever is on it now (also firmware this tool does not recognize), and the start-up area too. Only your unit's own saved settings at the very top are left alone (a factory reset clears them).\n\nUse it ONLY if a normal Restore Stock Firmware fails. If it stops part way, the unit may not start normally until you run it again: the UPDATE switch always works, so just do the same again. \n\nRun the Full Factory Restore?"),
     ('factory_done', 'Your Factory Firmware backup has been installed. Let go of the power button and set the PLAY/UPDATE switch back to PLAY.'),
+    ('factory_ask', "Put the factory firmware {version} on your unit?\n\nWhatever is on the unit now is replaced by the plain factory firmware {version}, from:\n{file}"),
+    ('unknown_offer', "This tool doesn't recognize the firmware on your unit, so it can't safely install over it.\n\nYou have the factory firmware {version} saved:\n{file}\n\nReplace whatever is on the unit with it? You can then install the custom firmware as usual. Anything on the unit that isn't saved somewhere else will be lost."),
+    ('factory_version_done', 'The factory firmware {version} is installed. Let go of the power button and set the PLAY/UPDATE switch back to PLAY.\n\nIf the sounds or settings act strangely, do a factory reset (both left yellow buttons held while switching on).'),
     ('stock_restored', 'The stock firmware file was missing (deleted or moved), so the tool put it back from its safety copy:\n\n{file}'),
     ('stock_bad_restore', '{file}\n\nis not the stock OM-108 firmware (its checksum differs).\n\nThe tool has a safety copy of your stock firmware file. Put it back now? (The file above is kept, renamed to {renamed}, in the backups folder.)'),
 ]
@@ -311,7 +345,8 @@ class App(tk.Tk):
         super().__init__()
         self.title(TITLE); self.configure(bg=BG)
         self.q = queue.Queue(); self.busy = False; self.gated = []; self.always = []; self.vars = {}; self._save_job = None
-        load_tips(); load_popups(); self._style(); self._build()
+        load_tips(); load_popups(); self._style()
+        self._build()
         d = defaults()
         if SETTINGS.exists():
             try: d = ini_read(SETTINGS.read_text(encoding='utf-8'), self.say); self._win_saved = ini_window(SETTINGS.read_text(encoding='utf-8'))
@@ -339,6 +374,9 @@ class App(tk.Tk):
         s.configure('Title.TLabel', font=('TkDefaultFont', F(17), 'bold')); s.configure('By.TLabel', foreground=MUTED, font=('TkDefaultFont', F(10)))
         s.configure('TCheckbutton', background=BG, indicatorbackground=ACCENT, indicatorforeground=INK, indicatorsize=Z(max(10, round(10 * FIT)), 6))
         s.map('TCheckbutton', background=[('active', BG), ('disabled', BG)], indicatorbackground=[('disabled', '#b9dcef'), ('active', ACCENT)])
+        s.configure('TRadiobutton', background=BG, indicatorbackground=ACCENT, indicatorforeground=INK, indicatorsize=Z(max(10, round(10 * FIT)), 6))
+        s.map('TRadiobutton', background=[('active', BG), ('disabled', BG)], indicatorbackground=[('disabled', '#b9dcef'), ('active', ACCENT)])
+        s.configure('Small.TRadiobutton', font=('TkDefaultFont', F(9)), indicatorsize=Z(max(8, round(8 * FIT)), 5))
         s.configure('TSeparator', background=INK); s.configure('Light.TSeparator', background='#6f9fd8')
         s.configure('TButton', background=ACCENT, foreground=INK, padding=(Z(10), Z(5)), bordercolor=INK)
         s.map('TButton', background=[('disabled', '#b9dcef'), ('active', '#ffffff')], foreground=[('disabled', '#5b6fa8')])
@@ -364,6 +402,11 @@ class App(tk.Tk):
         tip(self._gate(ttk.Button(bar, text='Restore Stock Firmware', command=self.do_restore)), 'restore').grid(row=0, column=1, padx=(6, 6), sticky='nsew')
         b = tip(ttk.Button(bar, text='Check/Dump Firmware', command=self.do_check), 'check'); b.grid(row=0, column=2, padx=(6, 6), sticky='nsew'); self.always.append(b)
         tip(self._gate(ttk.Button(bar, text='Suggested Defaults', command=self.do_defaults)), 'defaults').grid(row=0, column=3, padx=(6, 0), sticky='nsew')
+        # the factory version Restore Stock Firmware puts on the unit, under its button (_show_factory)
+        self.factory_row = ttk.Frame(bar); self.factory_var = tk.StringVar()
+        for v in ('29', '30'):
+            b = tip(ttk.Radiobutton(self.factory_row, text=f'1.0.{v[0]}.{v[1]}', variable=self.factory_var, value=v, style='Small.TRadiobutton'), 'factory')
+            b.pack(side='left', padx=6); self.always.append(b)
         self.stock_lbl = tip(ttk.Label(bottom, text=''), 'stock'); self.stock_lbl.pack(pady=(6, 0))       # centred in the window
         pf = ttk.Frame(bottom); pf.pack(fill='x', pady=(8, 4))
         # the bar across the full width; while a job runs, its percent is shown in the middle of the bar (_pct)
@@ -437,7 +480,7 @@ class App(tk.Tk):
         ttk.Label(f, text='Bonus Features', style='Head.TLabel').grid(row=0, column=0, columnspan=4, sticky='w', pady=(0, 6))
         rows = [('modulation', 'Modulation Modes'), ('extras', 'Extras'), ('spoken_names', 'Spoken Mode Names'),
                 ('drum_map', 'Drum MIDI Remap'), ('electric_harp', 'Electric Harp'), ('better_clap', 'Better Clap'),
-                ('kb_transpose', 'Keyboard Transpose')]
+                ('kb_transpose', 'Keyboard Transpose'), ('analog_mute', 'Low Chord Volume Mute')]
         for i, (k, t) in enumerate(rows):
             self.vars[k] = tk.IntVar()
             tip(self._gate(ttk.Checkbutton(f, text=t, variable=self.vars[k])), k).grid(row=1 + i // 4, column=i % 4, sticky='w', padx=(0, 32), pady=(0, 10))
@@ -729,6 +772,7 @@ class App(tk.Tk):
         work/stock_safety_copy/; if the file goes missing (deleted, moved), it is put back from that copy at once."""
         try:
             STOCK = stock_file()
+            SAFE = safe_for(OP.unit_version(BACKUPS) or (file_version(STOCK) if STOCK.exists() else None) or next(iter(sorted(safety_stocks())), '29'))
             sig = lambda p: (p.stat().st_size, p.stat().st_mtime_ns) if p.exists() else None
             now = (sig(STOCK), sig(SAFE))
             if now != self._seen:
@@ -747,11 +791,13 @@ class App(tk.Tk):
                     if repeat: messagebox.showinfo('Stock Firmware', P('stock_restored', file=STOCK))
                 if now is not None: self._seen = (sig(STOCK), sig(SAFE))
                 if not self.busy: self._refresh()
+            self._show_factory()
         except OSError as e: self.say(f'(Could not check the stock firmware file: {e})')
         if repeat: self.after(3000, self._guard_stock)
 
     def _offer_safe(self):
         """The stock firmware file is not stock: offer the safety copy (if there is a good one). True if it was put back."""
+        SAFE = safe_for(OP.unit_version(BACKUPS) or file_version(stock_file()) or next(iter(sorted(safety_stocks())), '29'))
         if not is_stock_file(SAFE): return False
         STOCK = stock_file()
         renamed = time.strftime('om108_backup_not_stock_%Y-%m-%d_%H%M%S.bin')
@@ -763,6 +809,19 @@ class App(tk.Tk):
             self.say(f'The stock firmware file was put back from the safety copy (the other file: {STOCK.parent.name}/{renamed}).')
         except OSError as e: self.say(f'Could not put the safety copy back: {e}')
         self._seen = None; self._refresh(); return True
+
+    def _show_factory(self):
+        """Factory version 1.0.2.9 / 1.0.3.0 under Restore Stock Firmware: shown only while the safety copy folder holds
+        both factory versions. It starts on the version of the tool's stock file (the unit's); picking the other one
+        only changes what Restore Stock Firmware puts on the unit (do_restore)."""
+        want = {'29', '30'} <= set(safety_stocks())
+        if want and not self.factory_row.winfo_manager(): self.factory_row.grid(row=1, column=1, pady=(4, 0))
+        elif not want and self.factory_row.winfo_manager(): self.factory_row.grid_remove()
+        if not want: self.factory_var.set('')
+        elif not self.busy and self.factory_var.get() not in ('29', '30'): self.factory_var.set(self._factory_now() or '')
+    def _factory_now(self):
+        """The factory version of the tool's stock file (= the unit's factory firmware), else None."""
+        return file_version(stock_file()) if is_stock_file(stock_file()) else None
 
     def _startup(self):
         STOCK = stock_file()
@@ -840,7 +899,8 @@ class App(tk.Tk):
         if rc == 0 and str(self.prog.cget('mode')) == 'determinate': self.prog['value'] = 100; self._pct('100 %')
         self.after(1500 if rc == 0 else 0, self._prog_reset)
         if rc == 0 and after: after(value)
-        if rc != 0: messagebox.showwarning(label, P('stopped'))
+        if rc != 0 and not (value and value.get('unknown') and self._offer_stock(value.get('factory'), 'Restore Stock Firmware')):
+            messagebox.showwarning(label, P('stopped'))
 
     def _pct(self, t):
         self._pct_text = t; ttk.Style(self).configure('Horizontal.TProgressbar', text=t); ttk.Style(self).configure('Idle.Horizontal.TProgressbar', text='')
@@ -866,6 +926,21 @@ class App(tk.Tk):
             ver = f"_v{v['version']}" if v.get('version') else ''          # a factory firmware: its version (v29 / v30)
             DUMPS.mkdir(exist_ok=True); dst = DUMPS / time.strftime(f'om108_dump{ver}_%Y-%m-%d_%H%M%S.bin')
             shutil.copyfile(v['file'], dst); self.say(f'Saved: {DUMPS.name}/{dst.name}')
+        if v.get('unknown'): self._offer_stock(v.get('factory'), 'Check/Dump Firmware')
+
+    def _stock_installed(self, title, name):
+        self.factory_var.set(''); self._seen = None; self._guard_stock(repeat=False)
+        messagebox.showinfo(title, P('factory_version_done', version=name))
+
+    def _offer_stock(self, fac, title):
+        """Firmware this tool doesn't know on the unit: offer to put that factory version's stock firmware back, if the tool
+        has it. False: no stock file to offer."""
+        v = fac or self._factory_now(); src = stock_for(v) if v else None
+        if not src: return False
+        name = f'1.0.{v[0]}.{v[1]}'
+        if messagebox.askyesno(title, P('unknown_offer', version=name, file=f'{src.parent.name}/{src.name}'), icon='warning', default='no') and self._ready(title):
+            self.run_job(f'install factory firmware {name}', ['install-stock', str(src)], after=lambda val: self._stock_installed(title, name))
+        return True
 
     def do_defaults(self):
         self.load_dict(defaults()); self.say('All settings set to the Suggested Default.')
@@ -886,13 +961,22 @@ class App(tk.Tk):
         if self._ready('Install Firmware'):
             self.run_job('install', ['install', '--settings', str(sf)], after=lambda v: messagebox.showinfo('Firmware Installed', P('install_done')))
     def do_restore(self):
+        v = self.factory_var.get(); have = safety_stocks()
+        if v in have and {'29', '30'} <= set(have) and v != self._factory_now():   # the other factory version picked: install that one
+            self.f_down = False; src = have[v]; name = f'1.0.{v[0]}.{v[1]}'
+            if messagebox.askyesno('Restore Stock Firmware', P('factory_ask', version=name, file=f'{src.parent.parent.name}/{src.parent.name}/{src.name}'),
+                                   icon='warning', default='no') and self._ready('Restore Stock Firmware'):
+                self.run_job(f'install factory firmware {name}', ['install-stock', str(src)], after=lambda val: self._stock_installed('Restore Stock Firmware', name))
+            return
         if self.f_down:
             self.f_down = False
             if messagebox.askyesno('Full Factory Restore', P('full_warning'), icon='warning', default='no') \
                and self._ready('Full Factory Restore'):
                 self.run_job('full factory restore', ['restore', '--full'], after=lambda v: messagebox.showinfo('Full Factory Restore', P('factory_done')))
             return
-        if messagebox.askyesno('Restore Stock Firmware', P('restore_ask')) and self._ready('Restore Stock Firmware'):
+        v = self._factory_now() or file_version(stock_file()) or '29'; f = stock_file()
+        if messagebox.askyesno('Restore Stock Firmware', P('factory_ask', version=f'1.0.{v[0]}.{v[1]}', file=f'{f.parent.parent.name}/{f.parent.name}/{f.name}'),
+                               icon='warning', default='no') and self._ready('Restore Stock Firmware'):
             self.run_job('restore', ['restore'], after=lambda v: messagebox.showinfo('Restore Stock Firmware', P('factory_done')))
 
 if __name__ == '__main__':

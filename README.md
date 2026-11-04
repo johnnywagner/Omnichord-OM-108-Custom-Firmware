@@ -6,19 +6,33 @@ A small desktop tool (macOS and Windows) that builds and installs a custom firmw
 made from **your own unit's original firmware**, with the features and sounds you choose. It can always put the original
 firmware back.
 
-The full guide to the new features on the instrument is the one-page **[User Manual](OM-108_CFW_User_Manual.pdf)**
-(`OM-108_CFW_User_Manual.pdf`). Inside the tool, hover over anything in the window for a full explanation.
+The full guide to the new features on the instrument is the one-page **[User Manual](OM-108%20Custom%20Firmware%20Manual.pdf)**
+(`OM-108 Custom Firmware Manual.pdf`). Inside the tool, hover over anything in the window for a full explanation.
 
 > **Disclaimer:** this is an unofficial hobby project, not affiliated with or endorsed by Suzuki or NXP. It is provided
 > as is, without any warranty. Modifying your instrument's firmware is at your own risk. It was built and tested on one
 > OM-108; units running firmware the tool doesn't recognise are refused, never written.
 
-> **Which units are supported:** OM-108s with factory firmware **1.0.2.9**. Units made from about mid-2025 on have a
-> newer factory firmware (**1.0.3.0**) that isn't supported yet. The tool tells you so after Check/Dump Firmware and
-> changes nothing. Support is being worked on in
-> [issue #4](https://github.com/johnnywagner/Omnichord-OM-108-Custom-Firmware/issues/4).
+> **Which units are supported:** every OM-108 we know of: units with factory firmware **1.0.2.9** and the newer
+> **1.0.3.0** (units made from about mid-2025 on). The tool finds out which one your unit has when you click
+> Check/Dump Firmware and builds the custom firmware for it. A unit with any other factory firmware is refused, never
+> written. (1.0.3.0 support has been tested on a computer model of the unit and on one real unit; reports from 1.0.3.0 owners are welcome.)
 
-## What's new (tool 1.2)
+## What's new (tool 1.3)
+- **Newer units supported:** OM-108s with factory firmware **1.0.3.0** can now install the custom firmware
+  ([#4](https://github.com/johnnywagner/Omnichord-OM-108-Custom-Firmware/issues/4)). Every feature and sound is the same
+  on both factory versions. Each unit keeps the small differences of its own factory firmware.
+- **New Bonus Feature: Low Chord Volume Mute** (off by default): Suzuki's mute from factory firmware 1.0.3.0, which
+  chokes the analog noise right before the chord knob bottoms out. It can now be turned on or off on both factory versions.
+- **Bank buttons in menus:** the VOICE and PATTERN bank buttons do nothing while Transpose, Master Tune or a modulation
+  menu is up in keyboard mode, so setting a modulation mode can't change a bank by accident. Holding G♭-7th and pressing
+  voice buttons 1-5 still picks the mode.
+- **Check/Dump Firmware** now says which factory firmware version your unit has and whether it's stock.
+- **Firmware the tool doesn't recognize:** if you have the matching stock firmware saved, the tool offers to put it back.
+- Units already running the custom firmware update with **Install Firmware** as usual; there's no need to restore stock
+  first.
+
+## Earlier: tool 1.2
 - **Keyboard Transpose** (new Bonus Feature, on by default): keyboard-mode notes follow the Transpose setting, for both
   the sound and MIDI out. Untick it for the stock behaviour, where keyboard notes are never transposed.
 - **Fixed:** after using the D♭-minor / G♭-minor menus in keyboard mode, notes no longer lost their Sustain release
@@ -28,8 +42,6 @@ The full guide to the new features on the instrument is the one-page **[User Man
   newest button shows, and letting go returns to the one still held.
 - **Tool:** a unit with a factory firmware version the tool doesn't support yet is named clearly instead of failing with
   a checksum error, and the stock backup and dumps now carry the factory version in their file names.
-- Units already running the custom firmware update with **Install Firmware** as usual; there's no need to restore stock
-  first.
 
 ## Quick start
 **Setup (once):**
@@ -44,7 +56,7 @@ The full guide to the new features on the instrument is the one-page **[User Man
 2. Your unit must be on its original (stock) firmware. Turn the Omnichord off, leaving the batteries in. Remove the
    battery cover and set the **PLAY/UPDATE** switch to **UPDATE** with a small screwdriver or similar tool, connect USB
    and click **Check/Dump Firmware**. This only reads the unit, and saves its stock firmware in
-   `my_unit/backups/om108_backup_v29.bin` (the number is your unit's factory firmware version: 29 = 1.0.2.9).
+   `my_unit/backups/om108_backup_v29.bin` (the number is your unit's factory firmware version: v29 = 1.0.2.9, v30 = 1.0.3.0).
 3. **Keep a copy of that file somewhere safe:** it is your way back to stock.
 4. Choose your settings and click **Install Firmware**. **During all reads and writes, the red power button must be held
    down** until the log says DONE; if it is released during a transfer, just start over.
@@ -162,15 +174,15 @@ when switching chords.
   preset, and the Drum MIDI Remap.
 - **Sub Sounds:** the sub sound and the alternate sub sound for every voice.
 - **Bonus Features:** Modulation Modes, Extras (OM-27 mode, Alternate Bass, Jazz Mode, 3rd Manual/Auto State), Spoken
-  Mode Names, Keyboard Transpose, Electric Harp, Better Clap.
+  Mode Names, Keyboard Transpose, Low Chord Volume Mute, Electric Harp, Better Clap.
 - **Always included:** Saved Settings and the stock firmware bug fixes.
-- **Suggested Default** sets every choice back to the recommended setup, with every feature on.
+- **Suggested Default** sets every choice back to the recommended setup, with every feature on except Low Chord Volume Mute.
 
 ## The folder
 | | |
 |---|---|
 | `om108_gui.py` | the tool (start this) |
-| `OM-108_CFW_User_Manual.pdf` | the one-page User Manual for the new features |
+| `OM-108 Custom Firmware Manual.pdf` | the User Manual for the new features |
 | `assets/` | the tool's own files (don't delete): the install engine, the firmware recipe (`om108_mod.patch`: only the modification's own bytes, no Suzuki code), NXP's flashloader, the hover texts (`tooltips.txt`) and popup texts (`popups.txt`) |
 | `my_unit/` | made on first use: everything about **your** unit: its stock firmware, copies read from it, logs, your settings. **Never share it**; delete it before giving the tool to someone else. |
 | `firmware_source/` | the source code of the modification, plus the development notes for making your own changes (see its README) |
