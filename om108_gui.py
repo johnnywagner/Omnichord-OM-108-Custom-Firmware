@@ -62,7 +62,7 @@ def Z(n, lo=1):
     """A size in pixels (padding, box sizes) at the current zoom."""
     return max(lo, round(n * ZOOM))
 
-GUI_VERSION = '0.45'
+GUI_VERSION = '0.46'
 SETTINGS_ACTIVE = True       # the firmware reads the settings block (Install uses the window's choices)
 SETTINGS = UNIT / 'settings.ini'
 BACKUPS = UNIT / 'backups'
@@ -71,26 +71,52 @@ def stock_file():
     (om108_backup.bin) is renamed to that the first time it is looked at."""
     return OP.find_backup(BACKUPS) or BACKUPS / OP.backup_name(OP.unit_version(BACKUPS) or '29')
 SAFE_DIR = UNIT / 'work' / 'stock_safety_copy'                      # a second copy of the stock firmware file (_guard_stock): om108_backup_v<version>.bin
-_SAFE_SEEN = {}
-def safety_stocks():
-    """{version: file} of the stock firmware files in the safety copy folder (both 1.0.2.9 and 1.0.3.0 there: the
-    window shows the Factory Version choice). Checked files are remembered by name, size and time. A stock file with
-    another name (om108_backup.bin from an earlier tool) is renamed with its version, unless that name is taken."""
+_STOCK_SEEN = {}
+def stocks_in(folder):
+    """{version: file} of the stock firmware files in a folder, whatever they are called. Checked files are remembered
+    by path, size and time. A stock file with another name is renamed with its version, unless that name is taken."""
     out = {}
-    try: files = sorted(p for p in SAFE_DIR.iterdir() if p.suffix == '.bin' and p.is_file())
+    try: files = sorted(p for p in folder.iterdir() if p.suffix.lower() == '.bin' and p.is_file())
     except OSError: return out
     for p in files:
-        try: k = (p.name, p.stat().st_size, p.stat().st_mtime_ns)
+        try: k = (str(p), p.stat().st_size, p.stat().st_mtime_ns)
         except OSError: continue
-        if k not in _SAFE_SEEN:
-            try: _SAFE_SEEN[k] = OP.stock_version(p.read_bytes()) if k[1] == OP.SIZE else None
+        if k not in _STOCK_SEEN:
+            try: _STOCK_SEEN[k] = OP.stock_version(p.read_bytes()) if k[1] == OP.SIZE else None
             except OSError: continue
-        v = _SAFE_SEEN[k]
-        if v and p.name != OP.backup_name(v) and not (SAFE_DIR / OP.backup_name(v)).exists():
-            try: os.replace(p, SAFE_DIR / OP.backup_name(v)); p = SAFE_DIR / OP.backup_name(v)
+        v = _STOCK_SEEN[k]
+        if v and p.name != OP.backup_name(v) and not (folder / OP.backup_name(v)).exists():
+            try: os.replace(p, folder / OP.backup_name(v)); p = folder / OP.backup_name(v)
             except OSError: pass
-        if v and v not in out: out[v] = p
+        if v and (v not in out or p.name == OP.backup_name(v)): out[v] = p
     return out
+def safety_stocks():
+    """{version: file} of the safety copy folder (both 1.0.2.9 and 1.0.3.0 there: the window shows the Factory Version choice)."""
+    return stocks_in(SAFE_DIR)
+def stock_folders_sig():
+    """What is in the two stock firmware folders: changes when a .bin file comes, goes or changes."""
+    out = []
+    for d in (BACKUPS, SAFE_DIR):
+        try: out += [(str(p), p.stat().st_size, p.stat().st_mtime_ns) for p in d.iterdir() if p.suffix.lower() == '.bin' and p.is_file()]
+        except OSError: pass
+    return sorted(out)
+def mirror_stocks():
+    """Every stock firmware file, of either factory version, in either folder, is copied to the other; the files written.
+    Two copies of one version that differ: backups/ wins. A file that is not stock is never overwritten in backups/
+    (_offer_safe asks). Before a second version reaches backups/, the one already there is recorded as this unit's, so
+    the tool keeps using it (find_backup)."""
+    back, safe = stocks_in(BACKUPS), stocks_in(SAFE_DIR)
+    if len(back) == 1 and set(safe) - set(back) and not OP.unit_version(BACKUPS): OP.remember_unit_version(BACKUPS, next(iter(back)))
+    done = []
+    for v in sorted(set(back) | set(safe)):
+        if v not in back:
+            src, dst = safe[v], BACKUPS / OP.backup_name(v)
+            if dst.exists(): continue
+        elif v not in safe or back[v].read_bytes() != safe[v].read_bytes(): src, dst = back[v], safe.get(v) or SAFE_DIR / OP.backup_name(v)
+        else: continue
+        dst.parent.mkdir(parents=True, exist_ok=True); tmp = dst.with_suffix('.tmp')
+        shutil.copyfile(src, tmp); os.replace(tmp, dst); done.append(dst)
+    return done
 def stock_for(v):
     """A good stock firmware file of factory version v: the tool's own, else the safety copy; None if there is none."""
     p = BACKUPS / OP.backup_name(v)
@@ -771,29 +797,23 @@ class App(tk.Tk):
         return ok
 
     def _guard_stock(self, repeat=True):
-        """Every 3 s: the stock firmware file is kept safe. While it is there (and checked), a second copy is kept in
-        work/stock_safety_copy/; if the file goes missing (deleted, moved), it is put back from that copy at once."""
+        """Every 3 s: the stock firmware files are kept safe. Each one, of either factory version, in backups/ or
+        work/stock_safety_copy/, is copied to the other folder, so one that goes missing (deleted, moved) is put back at once."""
         try:
-            STOCK = stock_file()
-            SAFE = safe_for(OP.unit_version(BACKUPS) or (file_version(STOCK) if STOCK.exists() else None) or next(iter(sorted(safety_stocks())), '29'))
-            sig = lambda p: (p.stat().st_size, p.stat().st_mtime_ns) if p.exists() else None
-            now = (sig(STOCK), sig(SAFE))
-            if now != self._seen:
-                if now[0] and is_stock_file(STOCK):
-                    if not SAFE.exists() or SAFE.stat().st_size != STOCK.stat().st_size or not is_stock_file(SAFE) \
-                       or hashlib.sha256(SAFE.read_bytes()).digest() != hashlib.sha256(STOCK.read_bytes()).digest():
-                        SAFE.parent.mkdir(parents=True, exist_ok=True); tmp = SAFE.with_suffix('.tmp')
-                        shutil.copyfile(STOCK, tmp); os.replace(tmp, SAFE); self.say(f'(A safety copy of the stock firmware file is kept in {SAFE.parent.parent.name}/{SAFE.parent.name}.)')
-                elif now[0] and repeat and self._seen is not None and is_stock_file(SAFE) and not is_stock_file(STOCK):
-                    self._seen = (sig(STOCK), sig(SAFE)); self._offer_safe(); now = None   # (asked once per change)
-                elif not now[0] and is_stock_file(SAFE):
-                    STOCK = BACKUPS / OP.backup_name(OP.stock_version(SAFE.read_bytes()))
-                    STOCK.parent.mkdir(parents=True, exist_ok=True); tmp = STOCK.with_suffix('.tmp')
-                    shutil.copyfile(SAFE, tmp); os.replace(tmp, STOCK)
-                    self.say(f'The stock firmware file was missing: put back from the safety copy ({STOCK.parent.name}/{STOCK.name}).')
-                    if repeat: messagebox.showinfo('Stock Firmware', P('stock_restored', file=STOCK))
-                if now is not None: self._seen = (sig(STOCK), sig(SAFE))
-                if not self.busy: self._refresh()
+            now = stock_folders_sig()
+            if now != self._seen and not self.busy:      # (the engine is left alone while it works: the next check catches up)
+                STOCK = stock_file()
+                SAFE = safe_for(OP.unit_version(BACKUPS) or (file_version(STOCK) if STOCK.exists() else None) or next(iter(sorted(safety_stocks())), '29'))
+                missing = not STOCK.exists(); asked = False
+                for dst in mirror_stocks():
+                    if dst.parent == BACKUPS: self.say(f'The stock firmware file was missing: put back from the safety copy ({dst.parent.name}/{dst.name}).' if missing else f'A stock firmware file was copied to {dst.parent.name}/{dst.name}.')
+                    else: self.say(f'(A safety copy of the stock firmware file is kept in {dst.parent.parent.name}/{dst.parent.name}/{dst.name}.)')
+                STOCK = stock_file()
+                if missing and repeat and STOCK.exists(): messagebox.showinfo('Stock Firmware', P('stock_restored', file=STOCK))
+                elif STOCK.exists() and repeat and self._seen is not None and is_stock_file(SAFE) and not is_stock_file(STOCK):
+                    self._seen = stock_folders_sig(); self._offer_safe(); asked = True   # (asked once per change)
+                if not asked: self._seen = stock_folders_sig()
+                self._refresh()
             self._show_factory()
         except OSError as e: self.say(f'(Could not check the stock firmware file: {e})')
         if repeat: self.after(3000, self._guard_stock)

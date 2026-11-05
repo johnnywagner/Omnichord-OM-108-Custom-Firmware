@@ -72,6 +72,12 @@ def unit_version(bdir):
     """The factory version install-stock last put on this unit (None: the one its backup was made from)."""
     try: return json.loads((Path(bdir) / 'om108_state.json').read_text()).get('factory_version')
     except (OSError, ValueError, AttributeError): return None
+def remember_unit_version(bdir, v):
+    """Record v as this unit's factory version, so find_backup keeps choosing it when a stock file of another version is added."""
+    f = Path(bdir) / 'om108_state.json'
+    try: st = json.loads(f.read_text()) if f.exists() else {}
+    except (OSError, ValueError): return
+    st['factory_version'] = v; tmp = f.with_suffix('.tmp'); tmp.write_text(json.dumps(st, indent=1)); os.replace(tmp, f)
 def find_backup(bdir):
     """The stock firmware file in bdir (None if there is none): om108_backup_v<version>.bin of a supported version (the
     one install-stock last put on the unit, when there are two). A backup made before the names carried the version (om108_backup.bin), or one tool 1.2 refused as a version it did not
