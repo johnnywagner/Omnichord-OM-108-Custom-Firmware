@@ -98,7 +98,7 @@ The 5 modes:
 are not sent over MIDI. Due to limitations of the analog circuits, neither Tremolo mode works on “omni 1” or the main
 voice of “omni 2”.
 
-**Keyboard Mode Modulation:** in keyboard mode, hold a chromatic key and press the “G♭-MINOR” or “D♭-MINOR” chord button
+**Keyboard Mode Modulation:** in keyboard mode, hold the “B♭-MINOR”, “D-MINOR” or “B-MINOR” chord button (before or after the notes)
 to play an Auto modulation mode on the played notes.
 
 ### Third Manual/Auto state
