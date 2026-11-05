@@ -9,7 +9,7 @@ You can edit or back it up with any text editor (close the window first, or it w
 
 Self-contained: everything it needs, reads and writes is in this folder: the tool's own files in assets/, everything
 about your unit in my_unit/ (the stock firmware in backups/, copies in dumps/, logs, settings). Nothing can be installed
-until the stock firmware of your unit is in my_unit/backups/om108_backup_v29.bin (checked against the known stock firmware). If it is missing, the window offers to check
+until the stock firmware of your unit is in my_unit/backups/om108_backup_v29.bin (checked against the known stock firmware; dumped from the unit, or loaded from a file at start-up). If it is missing, the window offers to check
 the unit, which reads it (read only) and keeps it if it is the stock firmware.
 
 Install Firmware installs the firmware with the choices in the window (MIDI, Sub Sounds, Bonus Features).
@@ -24,7 +24,7 @@ if importlib.util.find_spec('spsdk') is None and not os.environ.get('OM108_NO_SP
     raise ModuleNotFoundError("No module named 'spsdk'. This tool needs NXP's SPSDK. Install it with:  pip install spsdk"
                               "   (Thonny: Tools > Manage packages > spsdk > Install), then run the tool again.", name='spsdk')
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 
 HERE = Path(__file__).resolve().parent                     # the tool's folder: om108_gui.py, README.md and
 if (HERE / '.assets').is_dir() and not (HERE / 'assets').exists():   # (named .assets, hidden, before 2026-10-21 evening)
@@ -62,7 +62,7 @@ def Z(n, lo=1):
     """A size in pixels (padding, box sizes) at the current zoom."""
     return max(lo, round(n * ZOOM))
 
-GUI_VERSION = '0.44'
+GUI_VERSION = '0.45'
 SETTINGS_ACTIVE = True       # the firmware reads the settings block (Install uses the window's choices)
 SETTINGS = UNIT / 'settings.ini'
 BACKUPS = UNIT / 'backups'
@@ -270,7 +270,11 @@ POPUPS_FILE = ASSETS / 'popups.txt'
 DEFAULT_POPUPS = [
     ('stock_bad', '{file}\n\nis not the known stock OM-108 firmware (its checksum differs). Move it out of the my_unit/backups folder, then start the tool again.\n\nIf it is a copy of your own unit\'s original firmware, your OM-108 probably has a different factory firmware version, which this tool does not support yet. Please don\'t install; report it at {report} so support can be added.'),
     ('unsupported', 'Your Omnichord OM-108 has a factory firmware version this tool does not support yet: it is not the one the custom firmware was made for, and installing it could stop the unit from working. Nothing was changed on your unit.\n\nPlease don\'t install. Report it at {report} so support can be added.'),
-    ('stock_missing', 'The stock firmware file is missing:\n\n{file}\n\nNo changes can be made until the stock firmware has been dumped from your device or copied to the backups folder. \n\nWould you like to dump the current firmware from your Omnichord now? This is a read-only process and if your unit has the stock firmware it saves it to the backups folder. It takes a few minutes and only needs to be done once.'),
+    ('stock_missing', "No stock firmware file was found.\n\nNo changes can be made until the tool has your unit's stock firmware. If you already have a copy of it, the tool can load it now.\n\nWould you like to load it from a file?"),
+    ('stock_dump_ask', 'Would you like to dump the current firmware from your Omnichord now? This is a read-only process and if your unit has the stock firmware it saves it to the backups folder. It takes a few minutes and only needs to be done once.'),
+    ('stock_load_bad', "{file}\n\nis not the known stock OM-108 firmware, so it was not loaded. A copy of a unit running the custom firmware can't be used: it has to be the stock firmware."),
+    ('stock_load_unsupported', "{file}\n\nlooks like a factory firmware version this tool does not support yet, so it was not loaded. Please don't install; report it at {report} so support can be added."),
+    ('stock_loaded', 'Stock firmware {version} loaded. It was recognized and copied to:\n\n{file}\n{safe}'),
     ('ready', "Power off your OM-108. Remove the battery door and put the PLAY/UPDATE switch in the UPDATE position. Connect the OM-108 to your PC using a USB-B cable.\n\nPress OK, then hold the Omnichord's power button until the log says DONE or RESULT. If it stops, just do the same again."),
     ('stopped', 'The requested process unexpectedly stopped. Please check the log for more information.'),
     ('check_settings', 'Your Omnichord OM-108 currently has {result}.\n\nShow its settings in the window? (Your current choices are replaced; settings.ini is saved with them.)'),
@@ -829,8 +833,30 @@ class App(tk.Tk):
         if STOCK.exists():
             if not self._offer_safe(): messagebox.showwarning('Stock Firmware', P('stock_bad', file=STOCK, report=OP.REPORT))
             return
-        if messagebox.askyesno('Stock Firmware Missing', P('stock_missing', file=STOCK)):
+        if messagebox.askyesno('Stock Firmware Missing', P('stock_missing')) and self._load_stock(): return
+        if messagebox.askyesno('Dump Stock Firmware', P('stock_dump_ask')):
             self.do_check()
+
+    def _load_stock(self):
+        """Ask for a stock firmware file. A recognized one is copied to backups/ and the safety copy folder. True if loaded."""
+        name = filedialog.askopenfilename(parent=self, title='Choose your stock firmware file', filetypes=[('Firmware file', '*.bin'), ('All files', '*')])
+        if not name: return False
+        try: b = Path(name).read_bytes()
+        except OSError as e: messagebox.showwarning('Stock Firmware', f'{name}\n\ncould not be read: {e}'); return False
+        v = OP.stock_version(b) if len(b) == OP.SIZE else None
+        if not v:
+            if len(b) == OP.SIZE and OP.other_stock(b): messagebox.showwarning('Stock Firmware', P('stock_load_unsupported', file=name, report=OP.REPORT))
+            else: messagebox.showwarning('Stock Firmware', P('stock_load_bad', file=name))
+            return False
+        STOCK, SAFE = BACKUPS / OP.backup_name(v), safe_for(v)
+        try:
+            for dst in (STOCK, SAFE):
+                dst.parent.mkdir(parents=True, exist_ok=True); tmp = dst.with_suffix('.tmp'); tmp.write_bytes(b); os.replace(tmp, dst)
+        except OSError as e: messagebox.showwarning('Stock Firmware', f'{dst}\n\ncould not be written: {e}'); return False
+        self._seen = None; self._guard_stock(repeat=False)
+        self.say(f'Stock firmware: {STOCK.parent.name}/{STOCK.name} (loaded from a file, checked).')
+        messagebox.showinfo('Stock Firmware', P('stock_loaded', version=f'1.0.{v[0]}.{v[1]}', file=f'{STOCK.parent.name}/{STOCK.name}', safe=f'{SAFE.parent.parent.name}/{SAFE.parent.name}/{SAFE.name}'))
+        return True
 
     # -------------------------------------------------------------------------- jobs
     def say(self, s):

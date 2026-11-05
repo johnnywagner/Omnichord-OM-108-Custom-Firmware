@@ -15,13 +15,30 @@ Your Omnichord OM-108 has a factory firmware version this tool does not support 
 Please don't install. Report it at {report} so support can be added.
 
 [stock_missing]
-The stock firmware file is missing:
+No stock firmware file was found.
 
+No changes can be made until the tool has your unit's stock firmware. If you already have a copy of it, the tool can load it now.
+
+Would you like to load it from a file?
+
+[stock_dump_ask]
+Would you like to dump the current firmware from your Omnichord now? This is a read-only process and if your unit has the stock firmware it saves it to the backups folder. It takes a few minutes and only needs to be done once.
+
+[stock_load_bad]
 {file}
 
-No changes can be made until the stock firmware has been dumped from your device or copied to the backups folder. 
+is not the known stock OM-108 firmware, so it was not loaded. A copy of a unit running the custom firmware can't be used: it has to be the stock firmware.
 
-Would you like to dump the current firmware from your Omnichord now? This is a read-only process and if your unit has the stock firmware it saves it to the backups folder. It takes a few minutes and only needs to be done once.
+[stock_load_unsupported]
+{file}
+
+looks like a factory firmware version this tool does not support yet, so it was not loaded. Please don't install; report it at {report} so support can be added.
+
+[stock_loaded]
+Stock firmware {version} loaded. It was recognized and copied to:
+
+{file}
+{safe}
 
 [ready]
 Power off your OM-108. Remove the battery door and put the PLAY/UPDATE switch in the UPDATE position. Connect the OM-108 to your PC using a USB-B cable.
