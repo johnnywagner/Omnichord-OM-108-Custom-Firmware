@@ -78,27 +78,41 @@ def remember_unit_version(bdir, v):
     try: st = json.loads(f.read_text()) if f.exists() else {}
     except (OSError, ValueError): return
     st['factory_version'] = v; tmp = f.with_suffix('.tmp'); tmp.write_text(json.dumps(st, indent=1)); os.replace(tmp, f)
+_STOCK_CHECKED = {}
+def checks_stock(p):
+    """p is a whole stock firmware file of a supported version (remembered by path, size and time: the window asks every few seconds)."""
+    try:
+        st = Path(p).stat(); k = (str(p), st.st_size, st.st_mtime_ns)
+        if k not in _STOCK_CHECKED: _STOCK_CHECKED[k] = st.st_size == SIZE and sha(Path(p).read_bytes()[:FW_END]) in KNOWN_STOCK
+        return _STOCK_CHECKED[k]
+    except OSError: return False
 def find_backup(bdir):
-    """The stock firmware file in bdir (None if there is none): om108_backup_v<version>.bin of a supported version (the
-    one install-stock last put on the unit, when there are two). A backup made before the names carried the version (om108_backup.bin), or one tool 1.2 refused as a version it did not
-    support yet (om108_backup_v<version>_not_supported_yet.bin), is renamed once it checks as stock; any other file of
-    that name keeps it (and is reported as not stock)."""
+    """The stock firmware file in bdir (None if there is none): the file of the version recorded for this unit, even if
+    damaged (it is reported, and the window offers the safety copy); else om108_backup_v<version>.bin that checks as stock,
+    so a leftover file that isn't stock never hides a good one. A backup made before the names
+    carried the version (om108_backup.bin), or one tool 1.2 refused as a version it did not support yet
+    (om108_backup_v<version>_not_supported_yet.bin), is renamed once it checks as stock, unless that name is taken. With no
+    good file, the first of these names is returned and reported as not stock. Nothing here overwrites a file."""
     bdir = Path(bdir); uv = unit_version(bdir)
     if uv and (bdir / backup_name(uv)).exists(): return bdir / backup_name(uv)
-    for v in sorted(STOCK_VERSIONS[h] for h in KNOWN_STOCK):
-        if (bdir / backup_name(v)).exists(): return bdir / backup_name(v)
-    for v in sorted(STOCK_VERSIONS[h] for h in KNOWN_STOCK):
+    versions = sorted(STOCK_VERSIONS[h] for h in KNOWN_STOCK)
+    named = [bdir / backup_name(v) for v in versions if (bdir / backup_name(v)).exists()]
+    for p in named:
+        if checks_stock(p): return p
+    for v in versions:
         early = bdir / f'om108_backup_v{v}_not_supported_yet.bin'
-        try: ok = early.exists() and early.stat().st_size == SIZE and sha(early.read_bytes()[:FW_END]) in KNOWN_STOCK
-        except OSError: ok = False
-        if ok: os.replace(early, bdir / backup_name(v)); return bdir / backup_name(v)
+        if early.exists() and not (bdir / backup_name(v)).exists() and checks_stock(early):
+            os.replace(early, bdir / backup_name(v)); return bdir / backup_name(v)
     old = bdir / 'om108_backup.bin'
-    if not old.exists(): return None
-    try: b = old.read_bytes()
-    except OSError: return old
-    if len(b) == SIZE and sha(b[:FW_END]) in KNOWN_STOCK:
-        new = bdir / backup_name(stock_version(b)); os.replace(old, new); return new
-    return old
+    if named: first = named[0]
+    elif old.exists(): first = old
+    else: return None
+    if old.exists():
+        try: b = old.read_bytes()
+        except OSError: return first
+        if len(b) == SIZE and sha(b[:FW_END]) in KNOWN_STOCK and not (bdir / backup_name(stock_version(b))).exists():
+            new = bdir / backup_name(stock_version(b)); os.replace(old, new); return new
+    return first
 BLANK = {}
 def blank_sha(n):
     if n not in BLANK: BLANK[n] = sha(b'\xff' * n)
@@ -676,7 +690,10 @@ class Patcher:
                 f.write(u.read(off, 0x40000)); f.flush()
                 if (off // 0x40000) % 8 == 7: self.say(f'  read {100 * (off + 0x40000) // SIZE:3d} %   ({self.elapsed()})')
         last = self.dir / 'work' / 'last_read.bin'; os.replace(part, last)
-        d = last.read_bytes(); backup = self.backup_file.read_bytes() if self.backup_file.exists() else None
+        d = last.read_bytes(); fv = factory_of(d)
+        if fv and self.bdir / backup_name(fv) != self.backup_file and checks_stock(self.bdir / backup_name(fv)):   # two stock files: this unit's is now known
+            remember_unit_version(self.bdir, fv); self.backup_file = self.bdir / backup_name(fv)
+        backup = self.backup_file.read_bytes() if self.backup_file.exists() else None
         try: rec = self.recipe(backup)
         except Stop: rec = None
         r, kind = self.what_is(d, backup, rec)
