@@ -270,8 +270,7 @@ POPUPS_FILE = ASSETS / 'popups.txt'
 DEFAULT_POPUPS = [
     ('stock_bad', '{file}\n\nis not the known stock OM-108 firmware (its checksum differs). Move it out of the my_unit/backups folder, then start the tool again.\n\nIf it is a copy of your own unit\'s original firmware, your OM-108 probably has a different factory firmware version, which this tool does not support yet. Please don\'t install; report it at {report} so support can be added.'),
     ('unsupported', 'Your Omnichord OM-108 has a factory firmware version this tool does not support yet: it is not the one the custom firmware was made for, and installing it could stop the unit from working. Nothing was changed on your unit.\n\nPlease don\'t install. Report it at {report} so support can be added.'),
-    ('stock_missing', "No stock firmware file was found.\n\nNo changes can be made until the tool has your unit's stock firmware. If you already have a copy of it, the tool can load it now.\n\nWould you like to load it from a file?"),
-    ('stock_dump_ask', 'Would you like to dump the current firmware from your Omnichord now? This is a read-only process and if your unit has the stock firmware it saves it to the backups folder. It takes a few minutes and only needs to be done once.'),
+    ('stock_missing', "No stock firmware file was found.\n\nNo changes can be made until the tool has your unit's stock firmware. This only needs to be done once.\n\nLoad from File: use a copy of the stock firmware you already have.\n\nDump from Device: read it from your Omnichord. This is read-only and takes a few minutes. If your unit has the stock firmware, it is saved to the backups folder."),
     ('stock_load_bad', "{file}\n\nis not the known stock OM-108 firmware, so it was not loaded. A copy of a unit running the custom firmware can't be used: it has to be the stock firmware."),
     ('stock_load_unsupported', "{file}\n\nlooks like a factory firmware version this tool does not support yet, so it was not loaded. Please don't install; report it at {report} so support can be added."),
     ('stock_loaded', 'Stock firmware {version} loaded. It was recognized and copied to:\n\n{file}\n{safe}'),
@@ -833,9 +832,30 @@ class App(tk.Tk):
         if STOCK.exists():
             if not self._offer_safe(): messagebox.showwarning('Stock Firmware', P('stock_bad', file=STOCK, report=OP.REPORT))
             return
-        if messagebox.askyesno('Stock Firmware Missing', P('stock_missing')) and self._load_stock(): return
-        if messagebox.askyesno('Dump Stock Firmware', P('stock_dump_ask')):
-            self.do_check()
+        while True:                                      # a file cancelled or refused comes back here
+            choice = self._stock_choice()
+            if choice == 'file' and not self._load_stock(): continue
+            if choice == 'dump': self.do_check()
+            return
+
+    def _stock_choice(self):
+        """The Stock Firmware Missing window: 'file', 'dump', or None (Not Now, or the window closed)."""
+        d = tk.Toplevel(self); d.withdraw(); d.title('Stock Firmware Missing'); d.configure(bg=BG); d.resizable(False, False); d.transient(self)
+        out = [None]
+        def pick(v): out[0] = v; d.destroy()
+        f = ttk.Frame(d, padding=Z(16)); f.pack()
+        ttk.Label(f, text=P('stock_missing'), wraplength=Z(430), justify='left').pack(anchor='w')
+        bar = ttk.Frame(f); bar.pack(anchor='e', pady=(Z(14), 0))
+        for i, (text, v) in enumerate((('Load from File', 'file'), ('Dump from Device', 'dump'), ('Not Now', None))):
+            ttk.Button(bar, text=text, command=lambda v=v: pick(v)).grid(row=0, column=i, padx=(Z(8) if i else 0, 0))
+        d.bind('<Escape>', lambda e: pick(None))
+        d.update_idletasks()
+        d.geometry(f'+{self.winfo_rootx() + max(0, (self.winfo_width() - d.winfo_reqwidth()) // 2)}+{self.winfo_rooty() + max(0, (self.winfo_height() - d.winfo_reqheight()) // 3)}')
+        d.deiconify(); d.lift()
+        try: d.wait_visibility(); d.grab_set(); d.focus_set()
+        except tk.TclError: pass
+        self.wait_window(d)
+        return out[0]
 
     def _load_stock(self):
         """Ask for a stock firmware file. A recognized one is copied to backups/ and the safety copy folder. True if loaded."""

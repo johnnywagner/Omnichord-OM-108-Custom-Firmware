@@ -17,12 +17,11 @@ Please don't install. Report it at {report} so support can be added.
 [stock_missing]
 No stock firmware file was found.
 
-No changes can be made until the tool has your unit's stock firmware. If you already have a copy of it, the tool can load it now.
+No changes can be made until the tool has your unit's stock firmware. This only needs to be done once.
 
-Would you like to load it from a file?
+Load from File: use a copy of the stock firmware you already have.
 
-[stock_dump_ask]
-Would you like to dump the current firmware from your Omnichord now? This is a read-only process and if your unit has the stock firmware it saves it to the backups folder. It takes a few minutes and only needs to be done once.
+Dump from Device: read it from your Omnichord. This is read-only and takes a few minutes. If your unit has the stock firmware, it is saved to the backups folder.
 
 [stock_load_bad]
 {file}
