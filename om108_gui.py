@@ -62,7 +62,7 @@ def Z(n, lo=1):
     """A size in pixels (padding, box sizes) at the current zoom."""
     return max(lo, round(n * ZOOM))
 
-GUI_VERSION = '0.47'
+GUI_VERSION = '0.48'
 SETTINGS_ACTIVE = True       # the firmware reads the settings block (Install uses the window's choices)
 SETTINGS = UNIT / 'settings.ini'
 BACKUPS = UNIT / 'backups'
@@ -330,8 +330,7 @@ def tip(widget, key):
     def show():
         state['job'] = None
         if state['win'] or not widget.winfo_viewable(): return
-        w = tk.Toplevel(widget); w.wm_overrideredirect(True)
-        w.wm_geometry('+-20000+-20000')          # built and measured off screen: it shows once, in its place (no flash, and never under the mouse)
+        w = tk.Toplevel(widget); w.withdraw(); w.wm_overrideredirect(True)   # built hidden and shown once, in its place: no flash, never under the mouse (1.3.1-beta.1 built it off screen instead, which hid it on Windows)
         text = TIPS.get(key, key); fam = tkfont.nametofont('TkDefaultFont', root=widget).cget('family')
         plain = text.replace('**', '')
         box = tk.Text(w, bg=ACCENT, fg=INK, relief='solid', bd=1, padx=8, pady=5, wrap='word', highlightthickness=0,
@@ -347,7 +346,7 @@ def tip(widget, key):
         x = min(widget.winfo_rootx() + 12, w.winfo_screenwidth() - w.winfo_reqwidth() - 8)
         y = widget.winfo_rooty() + widget.winfo_height() + 6
         if y + w.winfo_reqheight() > w.winfo_screenheight() - 40: y = max(8, widget.winfo_rooty() - w.winfo_reqheight() - 6)
-        w.wm_geometry(f'+{max(8, x)}+{y}')
+        w.wm_geometry(f'+{max(8, x)}+{y}'); w.deiconify()
         state['win'] = w
     def enter(e): state['job'] = widget.after(350, show)
     def leave(e):
