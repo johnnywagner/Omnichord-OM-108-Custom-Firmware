@@ -62,7 +62,7 @@ def Z(n, lo=1):
     """A size in pixels (padding, box sizes) at the current zoom."""
     return max(lo, round(n * ZOOM))
 
-GUI_VERSION = '0.48'
+GUI_VERSION = '0.49'
 SETTINGS_ACTIVE = True       # the firmware reads the settings block (Install uses the window's choices)
 SETTINGS = UNIT / 'settings.ini'
 BACKUPS = UNIT / 'backups'
@@ -325,34 +325,44 @@ def load_popups():
                '# Read when the tool starts. Blank lines inside a text are kept.\n')
 
 def tip(widget, key):
-    """A small note that appears while the mouse is over the widget. Returns the widget."""
+    """A small note that appears while the mouse is over the widget. Returns the widget.
+    It is drawn inside the widget's own window, not as a window of its own: on Windows the separate tooltip window
+    flickered (1.3) or never showed (1.3.1-beta.1, built off screen or hidden first)."""
     state = {'win': None, 'job': None}
+    def hide():
+        if state['job']: widget.after_cancel(state['job']); state['job'] = None
+        if state['win']: state['win'].destroy(); state['win'] = None
     def show():
         state['job'] = None
         if state['win'] or not widget.winfo_viewable(): return
-        w = tk.Toplevel(widget); w.withdraw(); w.wm_overrideredirect(True)   # built hidden and shown once, in its place: no flash, never under the mouse (1.3.1-beta.1 built it off screen instead, which hid it on Windows)
+        top = widget.winfo_toplevel(); tw, th = top.winfo_width(), top.winfo_height()
         text = TIPS.get(key, key); fam = tkfont.nametofont('TkDefaultFont', root=widget).cget('family')
-        plain = text.replace('**', '')
-        box = tk.Text(w, bg=ACCENT, fg=INK, relief='solid', bd=1, padx=8, pady=5, wrap='word', highlightthickness=0,
-                      cursor='arrow', font=(fam, F(10)), width=max(12, min(95, max(len(l) for l in plain.splitlines() or ['']))), height=1)
+        plain = text.replace('**', ''); cw = max(1, int(widget.tk.call('font', 'measure', (fam, F(10)), '0')))
+        cols = max(12, min(95, max(len(l) for l in plain.splitlines() or ['']), (tw - 40) // cw))   # no wider than the window
+        box = tk.Text(top, bg=ACCENT, fg=INK, relief='solid', bd=1, padx=8, pady=5, wrap='word', highlightthickness=0,
+                      cursor='arrow', font=(fam, F(10)), width=cols, height=1)
         box.tag_configure('b', font=(fam, F(10), 'bold'))
         for part in re.split(r'(\*\*.+?\*\*)', text):            # **bold** in tooltips.txt
             if part.startswith('**') and part.endswith('**') and len(part) > 4: box.insert('end', part[2:-2], 'b')
             else: box.insert('end', part)
-        box.pack(); w.update_idletasks()
+        box.place(x=-10000, y=-10000); top.update_idletasks()    # measured out of sight, then placed once
         n = box.count('1.0', 'end', 'update', 'displaylines'); n = n[-1] if isinstance(n, tuple) else n
-        box.configure(height=max(1, n or 1), state='disabled')
-        w.update_idletasks()                     # below the item, or above it if there is no room below; inside the screen
-        x = min(widget.winfo_rootx() + 12, w.winfo_screenwidth() - w.winfo_reqwidth() - 8)
-        y = widget.winfo_rooty() + widget.winfo_height() + 6
-        if y + w.winfo_reqheight() > w.winfo_screenheight() - 40: y = max(8, widget.winfo_rooty() - w.winfo_reqheight() - 6)
-        w.wm_geometry(f'+{max(8, x)}+{y}'); w.deiconify()
-        state['win'] = w
-    def enter(e): state['job'] = widget.after(350, show)
-    def leave(e):
-        if state['job']: widget.after_cancel(state['job']); state['job'] = None
-        if state['win']: state['win'].destroy(); state['win'] = None
-    widget.bind('<Enter>', enter, add='+'); widget.bind('<Leave>', leave, add='+'); widget.bind('<ButtonPress>', leave, add='+')
+        box.configure(height=max(1, n or 1), state='disabled'); top.update_idletasks()
+        bw, bh = box.winfo_reqwidth(), box.winfo_reqheight()
+        wx, wy = widget.winfo_rootx() - top.winfo_rootx(), widget.winfo_rooty() - top.winfo_rooty()
+        x = max(8, min(wx + 12, tw - bw - 8))                    # below the item, or above it if there is no room below; inside the window
+        y = wy + widget.winfo_height() + 6
+        if y + bh > th - 8: y = max(8, wy - bh - 6)
+        box.place(x=x, y=y); box.lift(); box.bind('<Leave>', leave, add='+')
+        state['win'] = box
+    def enter(e):
+        if not state['win'] and not state['job']: state['job'] = widget.after(350, show)
+    def leave(e):                                                # (not when the mouse only moves between the item and its note)
+        try: under = widget.winfo_containing(e.x_root, e.y_root)
+        except (KeyError, tk.TclError): under = None
+        if under is not None and (under is widget or under is state['win']): return
+        hide()
+    widget.bind('<Enter>', enter, add='+'); widget.bind('<Leave>', leave, add='+'); widget.bind('<ButtonPress>', lambda e: hide(), add='+')
     return widget
 
 # ------------------------------------------------------------------------------------------------- the window
