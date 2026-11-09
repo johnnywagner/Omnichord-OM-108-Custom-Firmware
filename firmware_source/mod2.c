@@ -2542,6 +2542,44 @@ static void r27_tick(void) {
     for (u32 i = 0; i < 6u; i++) { u32 w = (S->play >> i) & 1u; if (LED(L[i]) != w) F_LEDSET(L[i], (int)w); }
     if (LED(0x0Eu ^ 0x0Fu ^ LATIN_LED)) F_LEDSET(0x0Eu ^ 0x0Fu ^ LATIN_LED, 0);   /* the yellow button's other LED */
 }
+/* ---------------- 1.3.1: a voice playing its alt sub shows a dim LED ----------------
+   The owner (2026-11-08): the selected voice's LED looks dim while that voice plays its alt sub, by the stock low-battery
+   warning's own trick for the power LED (0x60008520: the voice row redrawn without it, then with it for one control tick in
+   every 100). Here, for the selected voice's bit of LED port 4 (the voice row: bit 0 power, bits 1-5 voice slots, bits 6-7
+   banks): lit DIM_ON ms in every DIM_PERIOD ms, 2 LED writes per period (the LED task sends up to 1000 a second). Hands off
+   while the row is not the voice row (panel not live, power-on blink, a menu or display: busy_display, DE73 / DE78). Not
+   dimmed when the sounding slot is not the selected voice (P held in keyboard mode; Omni 2 in keyboard mode plays OM-84
+   Keys, which has no alt) or its LED flag is off. Any other redraw of the row (the stock voice code, the battery check, the
+   low-battery blink) is taken back within a tick; when the dim ends, the LED is set as its flag says. bat_row ignores the
+   dimmed bit when it compares the row. */
+#define DIMB       RA(20002CD0)   /* dim_t: the free bytes after am_t (0x20002CCC, 4 B), before the stock MIDI queue */
+#define DIMMAGIC   0xD1u
+#define DIM_PERIOD 100u           /* ms */
+#define DIM_ON     1u             /* ms lit in each period */
+typedef struct { u8 magic, bit; unsigned short t0; } dim_t;
+_Static_assert(DIMB >= RA(20002CCC) + 4u && DIMB + sizeof(dim_t) <= RA(20002CD4), "dim_t: after am_t, before the MIDI queue");
+static int row_busy(void) { return !R8(KEYS_EN) || R8(DE2C) || R8(DE73) || R8(DE78) || busy_display(); }
+static u32 dim_bit(void) {               /* the port-4 bit to dim now, or 0 */
+    u32 v = R8(DE89), s = R8(VSLOT);
+    if (v < 1u || v >= NV || !(s == v || (s == v + 12u && v != 1u)) || !alt_on(v)) return 0;
+    u32 slot = v % 5u;
+    return LED(2u + slot) ? 2u << slot : 0u;
+}
+static u32 dim_owned(void) { const dim_t *D = (const dim_t *)DIMB; return D->magic == DIMMAGIC ? D->bit : 0u; }
+static void dim_tick(void) {             /* control task, every tick */
+    dim_t *D = (dim_t *)DIMB;
+    if (D->magic != DIMMAGIC) { D->magic = DIMMAGIC; D->bit = 0; D->t0 = (unsigned short)TICKS; }
+    if (row_busy()) return;              /* not the voice row: its owner redraws it when done */
+    u32 b = dim_bit(), sh = R8(LEDSH), nv = sh, o = D->bit;
+    if (o && o != b) nv = LED(1u + (u32)__builtin_ctz(o)) ? (nv | o) : (nv & ~o);   /* the dim ended or moved: as the flag */
+    if (b) {
+        u32 el = (unsigned short)((unsigned short)TICKS - D->t0);
+        if (b != o || el >= DIM_PERIOD) { D->t0 = (unsigned short)TICKS; el = 0u; }
+        nv = el < DIM_ON ? (nv | b) : (nv & ~b);
+    }
+    D->bit = (u8)b;
+    if (nv != sh) { R8(LEDSH) = (u8)nv; F_F518(4u, (u32)(u8)~nv); }
+}
 /* ---------------- 2.78: battery check LED writes only on change ----------------
    The stock battery check 0x600081C0 (control loop, about every 7 ms) re-sends the battery LED register (0x40) and redraws
    the voice LED row with the power LED (0x60003A5C) every time, unchanged or not: two writes into the stock LED-write
@@ -2569,7 +2607,8 @@ void bat_led(u32 port, u32 val) {       /* replaces bl 0x6000F518(0x40, val) in 
 }
 void bat_row(u32 pwr) {                 /* replaces bl 0x60003A5C(1) in the battery check */
     bat_t *B = (bat_t *)BATB;
-    if (B->magic == BMAGIC && R8(LEDSH) == row_value(pwr) && LED(1) == pwr && ++B->crow < BAT_REFRESH) return;
+    u32 dm = dim_owned();                /* 1.3.1: the dimmed voice LED is dim_tick's */
+    if (B->magic == BMAGIC && (R8(LEDSH) | dm) == (row_value(pwr) | dm) && LED(1) == pwr && ++B->crow < BAT_REFRESH) return;
     if (B->magic != BMAGIC) { B->magic = BMAGIC; B->last = 0; B->c40 = 0; }
     B->crow = 0;
     F_3A5C(pwr);
@@ -2616,6 +2655,7 @@ void c274_wrap(void) {                   /* replaces bl c274 in the control loop
     ma_tick();                           /* 2.79 (before the snapshot) */
     r27_tick();                          /* 2.60 (before the snapshot: it saves the 27 selection) */
     kb_blink_tick();                     /* 2.65 / 2.80: the keyboard LED blink, any mode */
+    dim_tick();                          /* 1.3.1: a voice playing its alt sub shows a dim LED */
     pluck_tick();                        /* 2.64 */
     kt_tick();                           /* issue #2 */
     if (R8(ST) == 0x5A) snapshot();
