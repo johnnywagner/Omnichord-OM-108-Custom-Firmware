@@ -19,7 +19,7 @@ The full guide to the new features on the instrument is the one-page **[User Man
 > written. (1.0.3.0 support has been tested on a computer model of the unit and on one real unit; reports from 1.0.3.0 owners are welcome.)
 > Every feature and sound is the same on both; each unit keeps the small differences of its own factory firmware.
 
-Current version: **tool 1.3**. What changed in each version: [Releases](https://github.com/johnnywagner/Omnichord-OM-108-Custom-Firmware/releases).
+Current version: **tool 1.3.1**. What changed in each version: [Releases](https://github.com/johnnywagner/Omnichord-OM-108-Custom-Firmware/releases).
 
 ## Quick start
 **Setup (once):**
