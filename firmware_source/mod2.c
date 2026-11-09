@@ -12,7 +12,7 @@
    - modulation modes on the Instant OFF ("note off") plate: Note Off (stock: nothing of ours runs) / vibrato auto /
      vibrato manual (finger rock) / tremolo auto / tremolo manual (the floor); chosen in keyboard mode with Gb 7th (tap =
      next + spoken name; hold + Up / Down = step; hold + voice button 1-5 = that mode), shown on the voice LEDs; per-mode
-     depth (hold Db minor) and speed (hold Gb minor) menus; keyboard effect (a note held, then Db / Gb minor); analog
+     depth (hold Db minor) and speed (hold Gb minor) menus; keyboard effect (hold Bb, D or B minor); analog
      vibrato on the Omni 1/2 oscillators; MIDI pitch bend; 16x Instant OFF chip gain in the effect modes only;
    - 27 mode: the six OM-27 rhythms on the six PATTERN buttons (LATIN = yellow), combined as the OM-27's rhythm chip,
      KEYBOARD locks a held combination; Classic drum sounds; OM-27 chord and bass rhythms;
@@ -615,6 +615,7 @@ static const unsigned short SWELL_MHZ[13] = { 250, 500, 1250, 1250, 1250, 1250, 
    The stock 8x scale is about half of this (hands off 0-6, strumming nearby <= 4, touch 33-39). ---- */
 #define FADE_IN_MS   600  /* keyboard-mode menus only: audition fade-in */
 #define FADE_OUT_MS  880  /* fade-out (S-curve) once the finger has left the plate (its inaudible last 5-10 % included: >= 0.8 s heard) */
+#define KB_FADE_MS   220  /* 1.3.1 (the owner): the keyboard effect's fade-out; with the stock's 30-scan release = 0.25 s from letting go */
 #define REL_MS       800  /* while on the plate, depth may fall no faster than full -> 0 in this long */
 #define LEGATO_MS    250  /* re-touch within this long after the fade-out ended: carry on (phase, speed) */
 #define P_ON         15   /* the vibrato starts when the reading stays >= this for P_MS (about 2x strumming-nearby) ... */
@@ -934,6 +935,7 @@ u32 vib_tick(u32 dea1) {
         int plate = !kb && !v->mgate;                  /* menus (also closed by leaving keyboard mode), keyboard mode switched on mid-touch: 0.88 s */
         int fo = FADE_OUT_MS;
         if (plate) fo = PLATE_FADE_MS;
+        else if (v->mgate == MENU_KVIB) fo = KB_FADE_MS;
         v->fo = (unsigned short)fo;
     }
     v->gate = (u8)gate;
@@ -1152,6 +1154,8 @@ static int note_held(void) {
     for (u32 k = 13u; k <= 35u; k++) if (((NOTE_KEYS >> k) & 1ull) && R8(KEY(k) + 4u)) return 1;
     return 0;
 }
+/* 1.3.1 (the owner): keys 15 / 19 / 22 = Bb, D and B minor, the 3 minor buttons around the note keys: the keyboard effect */
+static int kfx_held(void) { return R8(KEY(15u) + 4u) || R8(KEY(19u) + 4u) || R8(KEY(22u) + 4u); }
 /* ---- keyboard notes follow Transpose (issue #2, the tool's switch CF_KTR; on stock they never do: the manual) ----
    The stock keyboard notes (0x30 + key + octave x 12) get the Transpose (DE79, -6..+6) added on their way out: the sample
    note-ons (kb_noteon) and the MIDI note-ons / note-offs (kb_mon / kb_moff, both MIDI channels). The amount is latched
@@ -1544,14 +1548,14 @@ static void ui_tick(void) {
     }
     par_sync();
     mt_t *M = mt();
-    int dk = R8(KEY(12u) + 4u) != 0, sk = R8(KEY(0x32u) + 4u) != 0;
+    int dk = R8(KEY(12u) + 4u) != 0, sk = R8(KEY(0x32u) + 4u) != 0, kk = kfx_held();
     if (!kb) {                                   /* left keyboard mode: mode selection / blink end (stock redraws) */
         if (U->menu == MENU_MODE) { U->menu = 0; U->ev = 0; }
         if (M->blink || M->pad) { M->pad = 0; M->blink = 0; F_LEDREST(); }
     }
     /* Gb 7th (key 0x35): press = mode selection display; release = next mode unless an arrow was used */
     u8 gb = R8(KEY(0x35u) + 4u) ? 1u : 0u;
-    if (gb && !U->gbm && kb && cf(CF_MOD) && !U->menu && !block_held() && !dk && !sk) {   /* Modulation Modes off: stock */
+    if (gb && !U->gbm && kb && cf(CF_MOD) && !U->menu && !block_held() && !dk && !sk && !kk) {   /* Modulation Modes off: stock */
         mode_begin(M); U->menu = MENU_MODE; U->ev = 0; U->redraw = 0; M->used = 0;
         mode_show(cur_mode(), 1);
     }
@@ -1582,23 +1586,32 @@ static void ui_tick(void) {
         else { u32 ph = el * 6u / BLINK_MS; if (ph != M->ph || ++U->redraw >= 100u) { M->ph = (u8)ph; U->redraw = 0; mode_show(cur_mode(), (ph & 1u) == 0u); } }
     }
     /* hold Db minor (key 12) = depth menu, hold Gb minor (key 0x32) = speed menu (effect modes; 2.53: in the manual modes
-       only the depth menu, at a flat 5 Hz, and no keyboard effect). A minor button held through the mode selection does
-       nothing until let go (lock). */
+       only the depth menu, at a flat 5 Hz, and no keyboard effect). 1.3.1: hold Bb, D or B minor = the keyboard effect, before or
+       after the notes (auto modes). A Db / Gb minor held through the mode selection, or pressed with a note held or during the
+       keyboard effect, does nothing until let go (lock): no test tone while playing. */
     if (M->lock && !dk && !sk) M->lock = 0;
+    if ((dk || sk) && (U->menu == MENU_KVIB || (!U->menu && note_held()))) M->lock = 1u;
     u32 want = 0u;
     if (kb && m2 && U->menu != MENU_MODE) {
         int man = is_rock(rvar());
         if (U->menu == MENU_DEPTH && dk) want = MENU_DEPTH;
         else if (U->menu == MENU_SPEED && sk) want = MENU_SPEED;
-        else if (U->menu == MENU_KVIB && (dk || sk)) want = MENU_KVIB;   /* until both are let go */
-        else if (!U->menu && (dk || sk) && !M->lock)
-            want = note_held() ? (man ? 0u : MENU_KVIB) : (dk ? MENU_DEPTH : (man ? 0u : MENU_SPEED));
+        else if (U->menu == MENU_KVIB && kk) want = MENU_KVIB;           /* until all three are let go */
+        else if (!U->menu) {
+            if (kk && !man) want = MENU_KVIB;
+            else if ((dk || sk) && !M->lock) want = dk ? MENU_DEPTH : (man ? 0u : MENU_SPEED);
+        }
     }
     if (U->menu != MENU_MODE) {
         if (want && !U->menu) { if (M->blink) mode_end(M); M->slot = R8(VSLOT); menu_enter(U, want); }
         else if (!want && U->menu) menu_close(U, M);
     }
     pt_stack(U, M);
+    /* 1.3.1 (the owner's report; the stock does it too, on both factory versions): the stock's P release in keyboard mode never
+       selects the voice again (its 0x6000AE74 call tests P's held flag before clearing it), so the keyboard stayed on the reference
+       tone's voice slot 12 until the voice or keyboard mode changed. Put back once P and T are let go and no reference tone of ours
+       is up; slot 12 is the player's own only with voice 0. */
+    if (kb && R8(VSLOT) == 12u && R8(DE89) && !pt_held() && U->menu != MENU_DEPTH && U->menu != MENU_SPEED) F_E7DC(R8(DE89) + 12u);
     if ((U->menu == MENU_DEPTH || U->menu == MENU_SPEED) && !M->above) {
         u8 ev = U->ev; U->ev = 0;
         if (ev) {

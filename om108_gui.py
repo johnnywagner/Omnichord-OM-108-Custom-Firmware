@@ -9,7 +9,7 @@ You can edit or back it up with any text editor (close the window first, or it w
 
 Self-contained: everything it needs, reads and writes is in this folder: the tool's own files in assets/, everything
 about your unit in my_unit/ (the stock firmware in backups/, copies in dumps/, logs, settings). Nothing can be installed
-until the stock firmware of your unit is in my_unit/backups/om108_backup_v29.bin (checked against the known stock firmware). If it is missing, the window offers to check
+until the stock firmware of your unit is in my_unit/backups/om108_backup_v29.bin (checked against the known stock firmware; dumped from the unit, or loaded from a file at start-up). If it is missing, the window offers to check
 the unit, which reads it (read only) and keeps it if it is the stock firmware.
 
 Install Firmware installs the firmware with the choices in the window (MIDI, Sub Sounds, Bonus Features).
@@ -24,7 +24,7 @@ if importlib.util.find_spec('spsdk') is None and not os.environ.get('OM108_NO_SP
     raise ModuleNotFoundError("No module named 'spsdk'. This tool needs NXP's SPSDK. Install it with:  pip install spsdk"
                               "   (Thonny: Tools > Manage packages > spsdk > Install), then run the tool again.", name='spsdk')
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 
 HERE = Path(__file__).resolve().parent                     # the tool's folder: om108_gui.py, README.md and
 if (HERE / '.assets').is_dir() and not (HERE / 'assets').exists():   # (named .assets, hidden, before 2026-10-21 evening)
@@ -62,7 +62,7 @@ def Z(n, lo=1):
     """A size in pixels (padding, box sizes) at the current zoom."""
     return max(lo, round(n * ZOOM))
 
-GUI_VERSION = '0.44'
+GUI_VERSION = '0.49'
 SETTINGS_ACTIVE = True       # the firmware reads the settings block (Install uses the window's choices)
 SETTINGS = UNIT / 'settings.ini'
 BACKUPS = UNIT / 'backups'
@@ -71,26 +71,52 @@ def stock_file():
     (om108_backup.bin) is renamed to that the first time it is looked at."""
     return OP.find_backup(BACKUPS) or BACKUPS / OP.backup_name(OP.unit_version(BACKUPS) or '29')
 SAFE_DIR = UNIT / 'work' / 'stock_safety_copy'                      # a second copy of the stock firmware file (_guard_stock): om108_backup_v<version>.bin
-_SAFE_SEEN = {}
-def safety_stocks():
-    """{version: file} of the stock firmware files in the safety copy folder (both 1.0.2.9 and 1.0.3.0 there: the
-    window shows the Factory Version choice). Checked files are remembered by name, size and time. A stock file with
-    another name (om108_backup.bin from an earlier tool) is renamed with its version, unless that name is taken."""
+_STOCK_SEEN = {}
+def stocks_in(folder):
+    """{version: file} of the stock firmware files in a folder, whatever they are called. Checked files are remembered
+    by path, size and time. A stock file with another name is renamed with its version, unless that name is taken."""
     out = {}
-    try: files = sorted(p for p in SAFE_DIR.iterdir() if p.suffix == '.bin' and p.is_file())
+    try: files = sorted(p for p in folder.iterdir() if p.suffix.lower() == '.bin' and p.is_file())
     except OSError: return out
     for p in files:
-        try: k = (p.name, p.stat().st_size, p.stat().st_mtime_ns)
+        try: k = (str(p), p.stat().st_size, p.stat().st_mtime_ns)
         except OSError: continue
-        if k not in _SAFE_SEEN:
-            try: _SAFE_SEEN[k] = OP.stock_version(p.read_bytes()) if k[1] == OP.SIZE else None
+        if k not in _STOCK_SEEN:
+            try: _STOCK_SEEN[k] = OP.stock_version(p.read_bytes()) if k[1] == OP.SIZE else None
             except OSError: continue
-        v = _SAFE_SEEN[k]
-        if v and p.name != OP.backup_name(v) and not (SAFE_DIR / OP.backup_name(v)).exists():
-            try: os.replace(p, SAFE_DIR / OP.backup_name(v)); p = SAFE_DIR / OP.backup_name(v)
+        v = _STOCK_SEEN[k]
+        if v and p.name != OP.backup_name(v) and not (folder / OP.backup_name(v)).exists():
+            try: os.replace(p, folder / OP.backup_name(v)); p = folder / OP.backup_name(v)
             except OSError: pass
-        if v and v not in out: out[v] = p
+        if v and (v not in out or p.name == OP.backup_name(v)): out[v] = p
     return out
+def safety_stocks():
+    """{version: file} of the safety copy folder (both 1.0.2.9 and 1.0.3.0 there: the window shows the Factory Version choice)."""
+    return stocks_in(SAFE_DIR)
+def stock_folders_sig():
+    """What is in the two stock firmware folders: changes when a .bin file comes, goes or changes."""
+    out = []
+    for d in (BACKUPS, SAFE_DIR):
+        try: out += [(str(p), p.stat().st_size, p.stat().st_mtime_ns) for p in d.iterdir() if p.suffix.lower() == '.bin' and p.is_file()]
+        except OSError: pass
+    return sorted(out)
+def mirror_stocks():
+    """Every stock firmware file, of either factory version, in either folder, is copied to the other; the files written.
+    Two copies of one version that differ: backups/ wins. A file that is not stock is never overwritten in backups/
+    (_offer_safe asks). Before a second version reaches backups/, the one already there is recorded as this unit's, so
+    the tool keeps using it (find_backup)."""
+    back, safe = stocks_in(BACKUPS), stocks_in(SAFE_DIR)
+    if len(back) == 1 and set(safe) - set(back) and not OP.unit_version(BACKUPS): OP.remember_unit_version(BACKUPS, next(iter(back)))
+    done = []
+    for v in sorted(set(back) | set(safe)):
+        if v not in back:
+            src, dst = safe[v], BACKUPS / OP.backup_name(v)
+            if dst.exists(): continue
+        elif v not in safe or back[v].read_bytes() != safe[v].read_bytes(): src, dst = back[v], safe.get(v) or SAFE_DIR / OP.backup_name(v)
+        else: continue
+        dst.parent.mkdir(parents=True, exist_ok=True); tmp = dst.with_suffix('.tmp')
+        shutil.copyfile(src, tmp); os.replace(tmp, dst); done.append(dst)
+    return done
 def stock_for(v):
     """A good stock firmware file of factory version v: the tool's own, else the safety copy; None if there is none."""
     p = BACKUPS / OP.backup_name(v)
@@ -229,7 +255,7 @@ DEFAULT_TIPS = [
     ('electric_harp', 'Replaces the main sound of the stock “harp” voice with a custom electric harp / clav sound.'),
     ('better_clap', 'Replaces the stock clap rhythm sound (also played by the Instant OFF plate in keyboard mode) with a "better" clap sound.'),
     ('header', '**Always On Mods**\n- **Saved Settings:** all your settings are saved between power-offs, except for Jazz Mode.\n- A factory reset (both [VOICE] and [PATTERN] left buttons (yellow) held while switching on) now sets the battery type to Ni-MH and also clears the saved settings.\n- The stock MIDI CC out messages (Volume & Release) have been removed, making room for a fifth MIDI preset, P5.\n\n**Stock Firmware Bug Fixes:** two small bugs involving LED states and chord data sent via MIDI out have been fixed (e.g. the held chord is now preserved on MIDI out when switching from Auto to Manual).'),
-    ('modulation', "Changes what the Instant OFF plate does, using the 3 chord buttons at the bottom left of the chord button grid that are unused in keyboard mode.\n\nIn keyboard mode, the “G♭-7th” chord button sets the modulation mode, in one of 3 ways:\n**Tap:** cycles to the next mode, shown on the [VOICE] LEDs. The unit announces the selected mode (intended for beginners).\n**Hold + [↑]/[↓] buttons:** cycles through the modes silently, like setting Transpose or Master Tune.\n**Hold + [VOICE] button 1–5:** chooses one of the 5 modes directly and silently. This is my preferred method.\n\n**The 5 modes:**\n- **Instant Off:** the stock behavior.\n- **Vibrato Auto:** like the stock behavior, a finger on the plate turns on the vibrato. The plate now also detects partial coverage and adjusts speed and depth accordingly. Try rolling your finger off slowly after pressing.\n- **Vibrato Manual:** rest a finger on a corner of the Instant OFF plate and rock it in and out, like bending a guitar string.\n- **Tremolo Auto:** the same as Vibrato Auto, but for volume.\n- **Tremolo Manual:** the same as Vibrato Manual, but for volume.\n\n**Speed (Auto modes):** hold the “G♭-MINOR” chord button and press [↑]/[↓], −6 to +6 on the [VOICE] LEDs.\n**Depth:** hold the “D♭-MINOR” chord button and press [↑]/[↓], 0 to 12 on the [PATTERN] LEDs.\nThe [↓]/[↑] buttons are the “E♭-MAJOR”/“B♭-MAJOR” chord buttons, as for Transpose and Master Tune; pressing both together resets the setting.\n\n**Notes:**\n- In keyboard mode, hold a chromatic key and press the “G♭-MINOR” or “D♭-MINOR” chord button to play an Auto modulation mode on the played notes.\n- Both Vibrato modes send matching MIDI pitch bend out. Both Tremolo modes are local to the unit and are not sent over MIDI.\n- Due to limitations of the analog circuits, neither Tremolo mode works on “omni 1” or the main voice of “omni 2”.\n\nEach mode's settings are saved automatically and are unique to that mode."),
+    ('modulation', "Changes what the Instant OFF plate does, using the 3 chord buttons at the bottom left of the chord button grid that are unused in keyboard mode.\n\nIn keyboard mode, the “G♭-7th” chord button sets the modulation mode, in one of 3 ways:\n**Tap:** cycles to the next mode, shown on the [VOICE] LEDs. The unit announces the selected mode (intended for beginners).\n**Hold + [↑]/[↓] buttons:** cycles through the modes silently, like setting Transpose or Master Tune.\n**Hold + [VOICE] button 1–5:** chooses one of the 5 modes directly and silently. This is my preferred method.\n\n**The 5 modes:**\n- **Instant Off:** the stock behavior.\n- **Vibrato Auto:** like the stock behavior, a finger on the plate turns on the vibrato. The plate now also detects partial coverage and adjusts speed and depth accordingly. Try rolling your finger off slowly after pressing.\n- **Vibrato Manual:** rest a finger on a corner of the Instant OFF plate and rock it in and out, like bending a guitar string.\n- **Tremolo Auto:** the same as Vibrato Auto, but for volume.\n- **Tremolo Manual:** the same as Vibrato Manual, but for volume.\n\n**Speed (Auto modes):** hold the “G♭-MINOR” chord button and press [↑]/[↓], −6 to +6 on the [VOICE] LEDs.\n**Depth:** hold the “D♭-MINOR” chord button and press [↑]/[↓], 0 to 12 on the [PATTERN] LEDs.\nThe [↓]/[↑] buttons are the “E♭-MAJOR”/“B♭-MAJOR” chord buttons, as for Transpose and Master Tune; pressing both together resets the setting.\n\n**Notes:**\n- In keyboard mode, hold the “B♭-MINOR”, “D-MINOR” or “B-MINOR” chord button (before or after the notes) to play an Auto modulation mode on the played notes.\n- Both Vibrato modes send matching MIDI pitch bend out. Both Tremolo modes are local to the unit and are not sent over MIDI.\n- Due to limitations of the analog circuits, neither Tremolo mode works on “omni 1” or the main voice of “omni 2”.\n\nEach mode's settings are saved automatically and are unique to that mode."),
     ('extras', '**OM-27 mode:** hold the [PATTERN (slow rock/funk)] button on startup. The 6 [PATTERN] buttons (including the yellow one) then play the 6 OM-27 rhythm patterns.\n  - From left to right: Latin (yellow), Rock, Foxtrot, Slow Rock, Waltz, Swing.\n  - Hold any 2 [PATTERN] buttons and press the [KEYBOARD (ON)] button to lock the selection.\n  - Otherwise, this mode works just like the OM-27.\n\n**Alternate Bass:** hold the [PATTERN] left button (yellow) on startup for an alternate (plucked) bass sound. Hold the [VOICE] left button (yellow) for the stock bass sound.\n\n**Jazz Mode:** hold the [KEYBOARD (ON)] button on startup. Changes and adds chord fingerings, and voice leads intelligently when switching chords. This is the only setting NOT remembered between power cycles. Have fun!\n\n**3rd Manual/Auto State:** hold the [Chord Manual/Auto] button and press the [KEYBOARD (ON)] button at any time (both LEDs lit). This third state combines Manual chords with the Auto bass. Do the same again to go back.'),
     ('spoken_names', 'The unit announces the rhythm mode chosen at power-on ([PATTERN (swing/waltz)]: “84 mode”, [PATTERN (country/bossanova)]: “108 mode”, [PATTERN (slow rock/funk)]: “27 mode”) and the modulation mode selected by tapping the “G♭-7th” chord button. I recommend leaving this on.\n**Off:** the modes still change and the LEDs still show them; nothing is spoken.'),
     ('kb_transpose', 'In keyboard mode, the chromatic keyboard notes follow the Transpose setting, like the chords and the strumplate do (MIDI out too). If you change Transpose while holding a note, the new setting starts with the next note you play.\n**Off:** the stock behavior: keyboard notes ignore Transpose.'),
@@ -270,7 +296,10 @@ POPUPS_FILE = ASSETS / 'popups.txt'
 DEFAULT_POPUPS = [
     ('stock_bad', '{file}\n\nis not the known stock OM-108 firmware (its checksum differs). Move it out of the my_unit/backups folder, then start the tool again.\n\nIf it is a copy of your own unit\'s original firmware, your OM-108 probably has a different factory firmware version, which this tool does not support yet. Please don\'t install; report it at {report} so support can be added.'),
     ('unsupported', 'Your Omnichord OM-108 has a factory firmware version this tool does not support yet: it is not the one the custom firmware was made for, and installing it could stop the unit from working. Nothing was changed on your unit.\n\nPlease don\'t install. Report it at {report} so support can be added.'),
-    ('stock_missing', 'The stock firmware file is missing:\n\n{file}\n\nNo changes can be made until the stock firmware has been dumped from your device or copied to the backups folder. \n\nWould you like to dump the current firmware from your Omnichord now? This is a read-only process and if your unit has the stock firmware it saves it to the backups folder. It takes a few minutes and only needs to be done once.'),
+    ('stock_missing', "No stock firmware file was found.\n\nNo changes can be made until the tool has your unit's stock firmware. This only needs to be done once.\n\nLoad from File: use a copy of the stock firmware you already have.\n\nDump from Device: read it from your Omnichord. This is read-only and takes a few minutes. If your unit has the stock firmware, it is saved to the backups folder."),
+    ('stock_load_bad', "{file}\n\nis not the known stock OM-108 firmware, so it was not loaded. A copy of a unit running the custom firmware can't be used: it has to be the stock firmware."),
+    ('stock_load_unsupported', "{file}\n\nlooks like a factory firmware version this tool does not support yet, so it was not loaded. Please don't install; report it at {report} so support can be added."),
+    ('stock_loaded', 'Stock firmware {version} loaded. It was recognized and copied to:\n\n{file}\n{safe}'),
     ('ready', "Power off your OM-108. Remove the battery door and put the PLAY/UPDATE switch in the UPDATE position. Connect the OM-108 to your PC using a USB-B cable.\n\nPress OK, then hold the Omnichord's power button until the log says DONE or RESULT. If it stops, just do the same again."),
     ('stopped', 'The requested process unexpectedly stopped. Please check the log for more information.'),
     ('check_settings', 'Your Omnichord OM-108 currently has {result}.\n\nShow its settings in the window? (Your current choices are replaced; settings.ini is saved with them.)'),
@@ -296,34 +325,44 @@ def load_popups():
                '# Read when the tool starts. Blank lines inside a text are kept.\n')
 
 def tip(widget, key):
-    """A small note that appears while the mouse is over the widget. Returns the widget."""
+    """A small note that appears while the mouse is over the widget. Returns the widget.
+    It is drawn inside the widget's own window, not as a window of its own: on Windows the separate tooltip window
+    flickered (1.3) or never showed (1.3.1-beta.1, built off screen or hidden first)."""
     state = {'win': None, 'job': None}
+    def hide():
+        if state['job']: widget.after_cancel(state['job']); state['job'] = None
+        if state['win']: state['win'].destroy(); state['win'] = None
     def show():
         state['job'] = None
         if state['win'] or not widget.winfo_viewable(): return
-        w = tk.Toplevel(widget); w.wm_overrideredirect(True)
+        top = widget.winfo_toplevel(); tw, th = top.winfo_width(), top.winfo_height()
         text = TIPS.get(key, key); fam = tkfont.nametofont('TkDefaultFont', root=widget).cget('family')
-        plain = text.replace('**', '')
-        box = tk.Text(w, bg=ACCENT, fg=INK, relief='solid', bd=1, padx=8, pady=5, wrap='word', highlightthickness=0,
-                      cursor='arrow', font=(fam, F(10)), width=max(12, min(95, max(len(l) for l in plain.splitlines() or ['']))), height=1)
+        plain = text.replace('**', ''); cw = max(1, int(widget.tk.call('font', 'measure', (fam, F(10)), '0')))
+        cols = max(12, min(95, max(len(l) for l in plain.splitlines() or ['']), (tw - 40) // cw))   # no wider than the window
+        box = tk.Text(top, bg=ACCENT, fg=INK, relief='solid', bd=1, padx=8, pady=5, wrap='word', highlightthickness=0,
+                      cursor='arrow', font=(fam, F(10)), width=cols, height=1)
         box.tag_configure('b', font=(fam, F(10), 'bold'))
         for part in re.split(r'(\*\*.+?\*\*)', text):            # **bold** in tooltips.txt
             if part.startswith('**') and part.endswith('**') and len(part) > 4: box.insert('end', part[2:-2], 'b')
             else: box.insert('end', part)
-        box.pack(); w.update_idletasks()
+        box.place(x=-10000, y=-10000); top.update_idletasks()    # measured out of sight, then placed once
         n = box.count('1.0', 'end', 'update', 'displaylines'); n = n[-1] if isinstance(n, tuple) else n
-        box.configure(height=max(1, n or 1), state='disabled')
-        w.update_idletasks()                     # below the item, or above it if there is no room below; inside the screen
-        x = min(widget.winfo_rootx() + 12, w.winfo_screenwidth() - w.winfo_reqwidth() - 8)
-        y = widget.winfo_rooty() + widget.winfo_height() + 6
-        if y + w.winfo_reqheight() > w.winfo_screenheight() - 40: y = max(8, widget.winfo_rooty() - w.winfo_reqheight() - 6)
-        w.wm_geometry(f'+{max(8, x)}+{y}')
-        state['win'] = w
-    def enter(e): state['job'] = widget.after(350, show)
-    def leave(e):
-        if state['job']: widget.after_cancel(state['job']); state['job'] = None
-        if state['win']: state['win'].destroy(); state['win'] = None
-    widget.bind('<Enter>', enter, add='+'); widget.bind('<Leave>', leave, add='+'); widget.bind('<ButtonPress>', leave, add='+')
+        box.configure(height=max(1, n or 1), state='disabled'); top.update_idletasks()
+        bw, bh = box.winfo_reqwidth(), box.winfo_reqheight()
+        wx, wy = widget.winfo_rootx() - top.winfo_rootx(), widget.winfo_rooty() - top.winfo_rooty()
+        x = max(8, min(wx + 12, tw - bw - 8))                    # below the item, or above it if there is no room below; inside the window
+        y = wy + widget.winfo_height() + 6
+        if y + bh > th - 8: y = max(8, wy - bh - 6)
+        box.place(x=x, y=y); box.lift(); box.bind('<Leave>', leave, add='+')
+        state['win'] = box
+    def enter(e):
+        if not state['win'] and not state['job']: state['job'] = widget.after(350, show)
+    def leave(e):                                                # (not when the mouse only moves between the item and its note)
+        try: under = widget.winfo_containing(e.x_root, e.y_root)
+        except (KeyError, tk.TclError): under = None
+        if under is not None and (under is widget or under is state['win']): return
+        hide()
+    widget.bind('<Enter>', enter, add='+'); widget.bind('<Leave>', leave, add='+'); widget.bind('<ButtonPress>', lambda e: hide(), add='+')
     return widget
 
 # ------------------------------------------------------------------------------------------------- the window
@@ -768,29 +807,23 @@ class App(tk.Tk):
         return ok
 
     def _guard_stock(self, repeat=True):
-        """Every 3 s: the stock firmware file is kept safe. While it is there (and checked), a second copy is kept in
-        work/stock_safety_copy/; if the file goes missing (deleted, moved), it is put back from that copy at once."""
+        """Every 3 s: the stock firmware files are kept safe. Each one, of either factory version, in backups/ or
+        work/stock_safety_copy/, is copied to the other folder, so one that goes missing (deleted, moved) is put back at once."""
         try:
-            STOCK = stock_file()
-            SAFE = safe_for(OP.unit_version(BACKUPS) or (file_version(STOCK) if STOCK.exists() else None) or next(iter(sorted(safety_stocks())), '29'))
-            sig = lambda p: (p.stat().st_size, p.stat().st_mtime_ns) if p.exists() else None
-            now = (sig(STOCK), sig(SAFE))
-            if now != self._seen:
-                if now[0] and is_stock_file(STOCK):
-                    if not SAFE.exists() or SAFE.stat().st_size != STOCK.stat().st_size or not is_stock_file(SAFE) \
-                       or hashlib.sha256(SAFE.read_bytes()).digest() != hashlib.sha256(STOCK.read_bytes()).digest():
-                        SAFE.parent.mkdir(parents=True, exist_ok=True); tmp = SAFE.with_suffix('.tmp')
-                        shutil.copyfile(STOCK, tmp); os.replace(tmp, SAFE); self.say(f'(A safety copy of the stock firmware file is kept in {SAFE.parent.parent.name}/{SAFE.parent.name}.)')
-                elif now[0] and repeat and self._seen is not None and is_stock_file(SAFE) and not is_stock_file(STOCK):
-                    self._seen = (sig(STOCK), sig(SAFE)); self._offer_safe(); now = None   # (asked once per change)
-                elif not now[0] and is_stock_file(SAFE):
-                    STOCK = BACKUPS / OP.backup_name(OP.stock_version(SAFE.read_bytes()))
-                    STOCK.parent.mkdir(parents=True, exist_ok=True); tmp = STOCK.with_suffix('.tmp')
-                    shutil.copyfile(SAFE, tmp); os.replace(tmp, STOCK)
-                    self.say(f'The stock firmware file was missing: put back from the safety copy ({STOCK.parent.name}/{STOCK.name}).')
-                    if repeat: messagebox.showinfo('Stock Firmware', P('stock_restored', file=STOCK))
-                if now is not None: self._seen = (sig(STOCK), sig(SAFE))
-                if not self.busy: self._refresh()
+            now = stock_folders_sig()
+            if now != self._seen and not self.busy:      # (the engine is left alone while it works: the next check catches up)
+                STOCK = stock_file()
+                SAFE = safe_for(OP.unit_version(BACKUPS) or (file_version(STOCK) if STOCK.exists() else None) or next(iter(sorted(safety_stocks())), '29'))
+                missing = not STOCK.exists(); asked = False
+                for dst in mirror_stocks():
+                    if dst.parent == BACKUPS: self.say(f'The stock firmware file was missing: put back from the safety copy ({dst.parent.name}/{dst.name}).' if missing else f'A stock firmware file was copied to {dst.parent.name}/{dst.name}.')
+                    else: self.say(f'(A safety copy of the stock firmware file is kept in {dst.parent.parent.name}/{dst.parent.name}/{dst.name}.)')
+                STOCK = stock_file()
+                if missing and repeat and STOCK.exists(): messagebox.showinfo('Stock Firmware', P('stock_restored', file=STOCK))
+                elif STOCK.exists() and repeat and self._seen is not None and is_stock_file(SAFE) and not is_stock_file(STOCK):
+                    self._seen = stock_folders_sig(); self._offer_safe(); asked = True   # (asked once per change)
+                if not asked: self._seen = stock_folders_sig()
+                self._refresh()
             self._show_factory()
         except OSError as e: self.say(f'(Could not check the stock firmware file: {e})')
         if repeat: self.after(3000, self._guard_stock)
@@ -829,8 +862,51 @@ class App(tk.Tk):
         if STOCK.exists():
             if not self._offer_safe(): messagebox.showwarning('Stock Firmware', P('stock_bad', file=STOCK, report=OP.REPORT))
             return
-        if messagebox.askyesno('Stock Firmware Missing', P('stock_missing', file=STOCK)):
-            self.do_check()
+        while True:                                      # a file cancelled or refused comes back here
+            choice = self._stock_choice()
+            if choice == 'file' and not self._load_stock(): continue
+            if choice == 'dump': self.do_check()
+            return
+
+    def _stock_choice(self):
+        """The Stock Firmware Missing window: 'file', 'dump', or None (Not Now, or the window closed)."""
+        d = tk.Toplevel(self); d.withdraw(); d.title('Stock Firmware Missing'); d.configure(bg=BG); d.resizable(False, False); d.transient(self)
+        out = [None]
+        def pick(v): out[0] = v; d.destroy()
+        f = ttk.Frame(d, padding=Z(16)); f.pack()
+        ttk.Label(f, text=P('stock_missing'), wraplength=Z(430), justify='left').pack(anchor='w')
+        bar = ttk.Frame(f); bar.pack(anchor='e', pady=(Z(14), 0))
+        for i, (text, v) in enumerate((('Load from File', 'file'), ('Dump from Device', 'dump'), ('Not Now', None))):
+            ttk.Button(bar, text=text, command=lambda v=v: pick(v)).grid(row=0, column=i, padx=(Z(8) if i else 0, 0))
+        d.bind('<Escape>', lambda e: pick(None))
+        d.update_idletasks()
+        d.geometry(f'+{self.winfo_rootx() + max(0, (self.winfo_width() - d.winfo_reqwidth()) // 2)}+{self.winfo_rooty() + max(0, (self.winfo_height() - d.winfo_reqheight()) // 3)}')
+        d.deiconify(); d.lift()
+        try: d.wait_visibility(); d.grab_set(); d.focus_set()
+        except tk.TclError: pass
+        self.wait_window(d)
+        return out[0]
+
+    def _load_stock(self):
+        """Ask for a stock firmware file. A recognized one is copied to backups/ and the safety copy folder. True if loaded."""
+        name = filedialog.askopenfilename(parent=self, title='Choose your stock firmware file', filetypes=[('Firmware file', '*.bin'), ('All files', '*')])
+        if not name: return False
+        try: b = Path(name).read_bytes()
+        except OSError as e: messagebox.showwarning('Stock Firmware', f'{name}\n\ncould not be read: {e}'); return False
+        v = OP.stock_version(b) if len(b) == OP.SIZE else None
+        if not v:
+            if len(b) == OP.SIZE and OP.other_stock(b): messagebox.showwarning('Stock Firmware', P('stock_load_unsupported', file=name, report=OP.REPORT))
+            else: messagebox.showwarning('Stock Firmware', P('stock_load_bad', file=name))
+            return False
+        STOCK, SAFE = BACKUPS / OP.backup_name(v), safe_for(v)
+        try:
+            for dst in (STOCK, SAFE):
+                dst.parent.mkdir(parents=True, exist_ok=True); tmp = dst.with_suffix('.tmp'); tmp.write_bytes(b); os.replace(tmp, dst)
+        except OSError as e: messagebox.showwarning('Stock Firmware', f'{dst}\n\ncould not be written: {e}'); return False
+        self._seen = None; self._guard_stock(repeat=False)
+        self.say(f'Stock firmware: {STOCK.parent.name}/{STOCK.name} (loaded from a file, checked).')
+        messagebox.showinfo('Stock Firmware', P('stock_loaded', version=f'1.0.{v[0]}.{v[1]}', file=f'{STOCK.parent.name}/{STOCK.name}', safe=f'{SAFE.parent.parent.name}/{SAFE.parent.name}/{SAFE.name}'))
+        return True
 
     # -------------------------------------------------------------------------- jobs
     def say(self, s):

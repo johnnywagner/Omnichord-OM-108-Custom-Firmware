@@ -19,7 +19,7 @@ The full guide to the new features on the instrument is the one-page **[User Man
 > written. (1.0.3.0 support has been tested on a computer model of the unit and on one real unit; reports from 1.0.3.0 owners are welcome.)
 > Every feature and sound is the same on both; each unit keeps the small differences of its own factory firmware.
 
-Current version: **tool 1.3**. What changed in each version: [Releases](https://github.com/johnnywagner/Omnichord-OM-108-Custom-Firmware/releases).
+Current version: **tool 1.3.1**. What changed in each version: [Releases](https://github.com/johnnywagner/Omnichord-OM-108-Custom-Firmware/releases).
 
 ## Quick start
 **Setup (once):**
@@ -98,7 +98,7 @@ The 5 modes:
 are not sent over MIDI. Due to limitations of the analog circuits, neither Tremolo mode works on “omni 1” or the main
 voice of “omni 2”.
 
-**Keyboard Mode Modulation:** in keyboard mode, hold a chromatic key and press the “G♭-MINOR” or “D♭-MINOR” chord button
+**Keyboard Mode Modulation:** in keyboard mode, hold the “B♭-MINOR”, “D-MINOR” or “B-MINOR” chord button (before or after the notes)
 to play an Auto modulation mode on the played notes.
 
 ### Third Manual/Auto state
